@@ -57,15 +57,32 @@ go run ./examples/go/quickstart
 ## C
 
 In [`examples/c/`](https://github.com/HyukjinKwon/adbc-driver-spark/tree/main/examples/c):
-a minimal program that loads `libadbc_driver_spark` through the ADBC driver
-manager and runs a query. See [Using from C and C++](usage-c.md) for the build
-commands.
+
+| File | What it shows |
+|------|---------------|
+| [`quickstart.c`](https://github.com/HyukjinKwon/adbc-driver-spark/blob/main/examples/c/quickstart.c) | Connect, run a `SELECT`, and read the Arrow result stream (counts rows and batches). |
+| [`README.md`](https://github.com/HyukjinKwon/adbc-driver-spark/blob/main/examples/c/README.md) | Build, run, and going-further notes. |
+
+`quickstart.c` loads `libadbc_driver_spark` through the standard ADBC driver
+manager (`libadbc_driver_manager`): set the `driver` database option to the
+shared library path and the manager `dlopen()`s it and resolves the default
+`AdbcDriverInit` entrypoint. See [Using from C and C++](usage-c.md) for the full
+listing and the compile and run commands.
 
 ## R
 
 In [`examples/r/`](https://github.com/HyukjinKwon/adbc-driver-spark/tree/main/examples/r):
-an `adbcdrivermanager` script that connects and queries. See
-[Using from R](usage-r.md).
+
+| File | What it shows |
+|------|---------------|
+| [`quickstart.R`](https://github.com/HyukjinKwon/adbc-driver-spark/blob/main/examples/r/quickstart.R) | Connect, run a `SELECT`, and materialize the Arrow result as a `data.frame`. |
+| [`README.md`](https://github.com/HyukjinKwon/adbc-driver-spark/blob/main/examples/r/README.md) | Setup and run instructions. |
+
+`quickstart.R` loads the shared library through the standard ADBC driver manager
+for R, [`adbcdrivermanager`](https://arrow.apache.org/adbc/current/r/adbcdrivermanager/):
+`adbc_driver()` wraps `libadbc_driver_spark` and the manager resolves the
+default `AdbcDriverInit` entrypoint. See [Using from R](usage-r.md) for the full
+listing and run commands.
 
 !!! tip
     Set the URI through an environment variable so the same example works

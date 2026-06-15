@@ -3,7 +3,10 @@
 
 R loads the shared library through the
 [`adbcdrivermanager`](https://arrow.apache.org/adbc/current/r/adbcdrivermanager/)
-package, the same way it loads any other ADBC driver.
+package, the same way it loads any other ADBC driver. Against
+**Apache Spark Connect**, `adbc_driver()` wraps the shared library and the
+manager resolves the default `AdbcDriverInit` entrypoint that the driver
+exports, so no entrypoint argument is needed.
 
 ## Prerequisites
 
@@ -16,12 +19,76 @@ install.packages("arrow")   # optional, for Arrow-native results
 
 Obtain `libadbc_driver_spark.{so,dylib,dll}` from
 [Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) or build it
-from source (see [Installation](installation.md)).
+from source (see [Installation](installation.md)). The copy bundled in the
+Python wheel works well. Start a Spark Connect server reachable at
+`sc://localhost:15002` before running.
 
-## Connecting and querying
+## The example script
 
-Construct a driver from the shared library path, initialize a database with the
-`sc://` URI, then open a connection and run a query.
+The runnable example lives at
+[`examples/r/quickstart.R`](https://github.com/HyukjinKwon/adbc-driver-spark/blob/main/examples/r/quickstart.R).
+It wraps the shared library with `adbc_driver()`, initializes a database with the
+`sc://` URI, opens a connection, runs a query with `read_adbc()`, and
+materializes the Arrow result as a base R `data.frame`. The `with_adbc()` helper
+closes each handle when the block exits, even on error.
+
+```r
+# SPDX-License-Identifier: Apache-2.0
+
+library(adbcdrivermanager)
+
+driver_path <- Sys.getenv("SPARK_DRIVER")
+uri <- Sys.getenv("SPARK_REMOTE", "sc://localhost:15002")
+
+if (!nzchar(driver_path)) {
+  stop("Set SPARK_DRIVER to the libadbc_driver_spark shared library path.")
+}
+
+# adbc_driver() wraps the shared library. The default entrypoint
+# ("AdbcDriverInit") is exactly what the Spark driver exports, so no entrypoint
+# argument is needed.
+drv <- adbc_driver(driver_path)
+
+# Initialize the database with the Spark Connect URI, then open a connection
+# (one Spark Connect session). The with_adbc() helper closes each handle when
+# the block exits, even on error.
+db <- adbc_database_init(drv, uri = uri)
+with_adbc(db, {
+  con <- adbc_connection_init(db)
+  with_adbc(con, {
+    # read_adbc() executes a query and returns a streaming result; as.data.frame
+    # materializes it. The driver returns native Arrow data underneath.
+    result <- read_adbc(con, "SELECT id, id * id AS square FROM range(5)")
+    df <- as.data.frame(result)
+    print(df)
+  })
+})
+```
+
+## Running
+
+Point `SPARK_DRIVER` at the Spark Connect shared library (use the path for your
+platform) and run the script with `Rscript`:
+
+```bash
+export SPARK_DRIVER=/path/to/libadbc_driver_spark.so
+export SPARK_REMOTE=sc://localhost:15002
+Rscript examples/r/quickstart.R
+```
+
+If the driver came from the Python wheel, resolve its path automatically:
+
+```bash
+export SPARK_DRIVER=$(python -c \
+  "import adbc_driver_spark, pathlib; \
+   print(next(pathlib.Path(adbc_driver_spark.__file__).parent.glob('libadbc_driver_spark.*')))")
+```
+
+## Connecting and querying interactively
+
+The same lifecycle works without the `with_adbc()` blocks. Construct a driver
+from the shared library path, initialize a database with the `sc://` URI, then
+open a connection and run a query.
 
 ```r
 library(adbcdrivermanager)
