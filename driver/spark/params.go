@@ -83,6 +83,44 @@ func columnToLiteral(col arrow.Array, row int) (*connect.Expression_Literal, err
 		lit.LiteralType = &connect.Expression_Literal_Binary{Binary: bytes.Clone(arr.Value(row))}
 	case *array.Date32:
 		lit.LiteralType = &connect.Expression_Literal_Date{Date: int32(arr.Value(row))}
+	case *array.Date64:
+		// Date64 stores milliseconds since the epoch; Spark's date literal is in
+		// days. Floor-divide so any intra-day component is dropped.
+		const msPerDay = 24 * 60 * 60 * 1000
+		lit.LiteralType = &connect.Expression_Literal_Date{Date: int32(int64(arr.Value(row)) / msPerDay)}
+	case *array.Timestamp:
+		tt, ok := arr.DataType().(*arrow.TimestampType)
+		if !ok {
+			return nil, adbc.Error{Msg: "spark: timestamp column has no TimestampType", Code: adbc.StatusInternal}
+		}
+		micros, err := timestampToMicros(int64(arr.Value(row)), tt.Unit)
+		if err != nil {
+			return nil, err
+		}
+		// A timestamp carrying a time zone denotes an absolute instant, which maps
+		// to Spark's TIMESTAMP; a zone-less timestamp is wall-clock, which maps to
+		// TIMESTAMP_NTZ. The stored value is micros-since-epoch in both cases.
+		if tt.TimeZone != "" {
+			lit.LiteralType = &connect.Expression_Literal_Timestamp{Timestamp: micros}
+		} else {
+			lit.LiteralType = &connect.Expression_Literal_TimestampNtz{TimestampNtz: micros}
+		}
+	case *array.Decimal128:
+		dt := arr.DataType().(*arrow.Decimal128Type)
+		prec, scale := dt.Precision, dt.Scale
+		lit.LiteralType = &connect.Expression_Literal_Decimal_{Decimal: &connect.Expression_Literal_Decimal{
+			Value:     arr.Value(row).ToString(scale),
+			Precision: &prec,
+			Scale:     &scale,
+		}}
+	case *array.Decimal256:
+		dt := arr.DataType().(*arrow.Decimal256Type)
+		prec, scale := dt.Precision, dt.Scale
+		lit.LiteralType = &connect.Expression_Literal_Decimal_{Decimal: &connect.Expression_Literal_Decimal{
+			Value:     arr.Value(row).ToString(scale),
+			Precision: &prec,
+			Scale:     &scale,
+		}}
 	default:
 		return nil, adbc.Error{
 			Msg:  fmt.Sprintf("spark: cannot bind parameter of Arrow type %s", col.DataType()),
@@ -90,4 +128,25 @@ func columnToLiteral(col arrow.Array, row int) (*connect.Expression_Literal, err
 		}
 	}
 	return lit, nil
+}
+
+// timestampToMicros converts an Arrow timestamp value to microseconds since the
+// UNIX epoch, the unit Spark Connect timestamp literals use. Nanosecond inputs
+// are truncated to microsecond resolution, matching Spark's precision.
+func timestampToMicros(v int64, unit arrow.TimeUnit) (int64, error) {
+	switch unit {
+	case arrow.Second:
+		return v * 1_000_000, nil
+	case arrow.Millisecond:
+		return v * 1_000, nil
+	case arrow.Microsecond:
+		return v, nil
+	case arrow.Nanosecond:
+		return v / 1_000, nil
+	default:
+		return 0, adbc.Error{
+			Msg:  fmt.Sprintf("spark: unsupported timestamp unit %v", unit),
+			Code: adbc.StatusNotImplemented,
+		}
+	}
 }

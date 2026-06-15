@@ -24,6 +24,8 @@ import (
 	"github.com/apache/arrow-adbc/go/adbc"
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
+	"github.com/apache/arrow-go/v18/arrow/decimal128"
+	"github.com/apache/arrow-go/v18/arrow/decimal256"
 	"github.com/apache/arrow-go/v18/arrow/memory"
 
 	connect "github.com/HyukjinKwon/adbc-driver-spark/internal/sparkconnect/proto/spark/connect"
@@ -336,6 +338,103 @@ func TestColumnToLiteralTypes(t *testing.T) {
 				}
 				if lit.GetDate() != 19000 {
 					t.Errorf("got %d", lit.GetDate())
+				}
+			},
+		},
+		{
+			name: "date64 truncates to days",
+			build: func() arrow.Array {
+				b := array.NewDate64Builder(alloc)
+				defer b.Release()
+				const msPerDay = 24 * 60 * 60 * 1000
+				// 19000 days plus a partial day; the partial day must be dropped.
+				b.Append(arrow.Date64(int64(19000)*msPerDay + 12345))
+				return b.NewArray()
+			},
+			check: func(t *testing.T, lit *connect.Expression_Literal) {
+				if _, ok := lit.LiteralType.(*connect.Expression_Literal_Date); !ok {
+					t.Fatalf("got %T", lit.LiteralType)
+				}
+				if lit.GetDate() != 19000 {
+					t.Errorf("got %d, want 19000", lit.GetDate())
+				}
+			},
+		},
+		{
+			name: "timestamp with zone maps to instant micros",
+			build: func() arrow.Array {
+				b := array.NewTimestampBuilder(alloc, &arrow.TimestampType{Unit: arrow.Millisecond, TimeZone: "UTC"})
+				defer b.Release()
+				b.Append(arrow.Timestamp(1700)) // 1700 ms -> 1_700_000 us
+				return b.NewArray()
+			},
+			check: func(t *testing.T, lit *connect.Expression_Literal) {
+				if _, ok := lit.LiteralType.(*connect.Expression_Literal_Timestamp); !ok {
+					t.Fatalf("got %T", lit.LiteralType)
+				}
+				if lit.GetTimestamp() != 1_700_000 {
+					t.Errorf("got %d, want 1700000", lit.GetTimestamp())
+				}
+			},
+		},
+		{
+			name: "timestamp without zone maps to ntz micros",
+			build: func() arrow.Array {
+				b := array.NewTimestampBuilder(alloc, &arrow.TimestampType{Unit: arrow.Microsecond})
+				defer b.Release()
+				b.Append(arrow.Timestamp(1_500_000))
+				return b.NewArray()
+			},
+			check: func(t *testing.T, lit *connect.Expression_Literal) {
+				if _, ok := lit.LiteralType.(*connect.Expression_Literal_TimestampNtz); !ok {
+					t.Fatalf("got %T", lit.LiteralType)
+				}
+				if lit.GetTimestampNtz() != 1_500_000 {
+					t.Errorf("got %d, want 1500000", lit.GetTimestampNtz())
+				}
+			},
+		},
+		{
+			name: "decimal128",
+			build: func() arrow.Array {
+				dt := &arrow.Decimal128Type{Precision: 10, Scale: 2}
+				b := array.NewDecimal128Builder(alloc, dt)
+				defer b.Release()
+				b.Append(decimal128.FromI64(12345)) // 123.45 at scale 2
+				return b.NewArray()
+			},
+			check: func(t *testing.T, lit *connect.Expression_Literal) {
+				d, ok := lit.LiteralType.(*connect.Expression_Literal_Decimal_)
+				if !ok {
+					t.Fatalf("got %T", lit.LiteralType)
+				}
+				if got := d.Decimal.GetValue(); got != "123.45" {
+					t.Errorf("value = %q, want 123.45", got)
+				}
+				if d.Decimal.GetPrecision() != 10 || d.Decimal.GetScale() != 2 {
+					t.Errorf("precision/scale = %d/%d, want 10/2", d.Decimal.GetPrecision(), d.Decimal.GetScale())
+				}
+			},
+		},
+		{
+			name: "decimal256",
+			build: func() arrow.Array {
+				dt := &arrow.Decimal256Type{Precision: 20, Scale: 4}
+				b := array.NewDecimal256Builder(alloc, dt)
+				defer b.Release()
+				b.Append(decimal256.FromI64(123456)) // 12.3456 at scale 4
+				return b.NewArray()
+			},
+			check: func(t *testing.T, lit *connect.Expression_Literal) {
+				d, ok := lit.LiteralType.(*connect.Expression_Literal_Decimal_)
+				if !ok {
+					t.Fatalf("got %T", lit.LiteralType)
+				}
+				if got := d.Decimal.GetValue(); got != "12.3456" {
+					t.Errorf("value = %q, want 12.3456", got)
+				}
+				if d.Decimal.GetScale() != 4 {
+					t.Errorf("scale = %d, want 4", d.Decimal.GetScale())
 				}
 			},
 		},
