@@ -140,6 +140,52 @@ Authentication](connecting.md).
     print(df)
     ```
 
+=== "Rust"
+
+    ```rust
+    use adbc_core::options::{AdbcVersion, OptionDatabase};
+    use adbc_core::{Connection, Database, Driver, Statement};
+    use adbc_driver_manager::ManagedDriver;
+
+    // entrypoint = None uses the default AdbcDriverInit symbol.
+    let mut driver = ManagedDriver::load_dynamic_from_filename(driver_path, None, AdbcVersion::V110)?;
+    let mut database = driver.new_database_with_opts([(OptionDatabase::Uri, "sc://localhost:15002".into())])?;
+    let mut connection = database.new_connection()?;
+    let mut statement = connection.new_statement()?;
+    statement.set_sql_query("SELECT id, id * id AS square FROM range(5)")?;
+
+    let reader = statement.execute()?;   // a RecordBatchReader
+    let mut rows = 0usize;
+    for batch in reader {
+        rows += batch?.num_rows();
+    }
+    println!("read {rows} rows");
+    ```
+
+    !!! note
+        `driver_path` is the path to `libadbc_driver_spark.{so,dylib,dll}`. The
+        full setup (dependencies, error handling) lives in
+        [Using from Rust](usage-rust.md).
+
+=== "Ruby"
+
+    ```ruby
+    require "adbc"
+
+    # driver is the path to libadbc_driver_spark.{so,dylib,dll}.
+    ADBC::Database.open(driver: driver, uri: "sc://localhost:15002") do |database|
+      database.connect do |connection|
+        # query runs the SQL and returns an Arrow::Table.
+        table = connection.query("SELECT id, id * id AS square FROM range(5)")
+        puts table
+      end
+    end
+    ```
+
+    !!! note
+        See [Using from Ruby](usage-ruby.md) for installing the `red-adbc` gem
+        and the full setup.
+
 !!! tip
     `fetch_arrow_table()` returns a `pyarrow.Table` with zero copy from the
     Arrow batches Spark streamed back. Use `fetch_df()` for a pandas DataFrame.

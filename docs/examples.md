@@ -9,7 +9,7 @@ point at your own endpoint.
 
 All examples assume a running **Apache Spark Connect** server. See the
 [Quickstart](quickstart.md) for how to start one. The Python examples are
-executed against live Spark 4.0.x and 4.1.x servers on every CI run.
+executed against live Spark 3.5.x, 4.0.x, and 4.1.x servers on every CI run.
 
 ## Python
 

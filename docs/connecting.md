@@ -78,6 +78,34 @@ For a local, plaintext Spark Connect server, the URI is all you need.
     con <- adbc_connection_init(db)
     ```
 
+=== "Rust"
+
+    ```rust
+    // driver_path is the path to libadbc_driver_spark.{so,dylib,dll}.
+    let mut driver = ManagedDriver::load_dynamic_from_filename(driver_path, None, AdbcVersion::V110)?;
+    let mut database = driver.new_database_with_opts(
+        [(OptionDatabase::Uri, "sc://localhost:15002".into())])?;
+    let mut connection = database.new_connection()?;
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    require "adbc"
+
+    # driver is the path to libadbc_driver_spark.{so,dylib,dll}.
+    ADBC::Database.open(driver: driver, uri: "sc://localhost:15002") do |database|
+      database.connect do |connection|
+        # ... run queries ...
+      end
+    end
+    ```
+
+!!! note
+    For the full Rust and Ruby setup see [Using from Rust](usage-rust.md) and
+    [Using from Ruby](usage-ruby.md). The token, TLS, and header options below
+    are passed the same way for those languages.
+
 ## TLS and bearer tokens
 
 To reach a TLS endpoint that requires a bearer token, set the token and enable
@@ -128,6 +156,31 @@ bearer token over plaintext would leak the credential.
         uri = "sc://spark.example.com:443",
         adbc.spark.connect.token = "eyJhbGci...",
         adbc.spark.connect.use_ssl = "true")
+    ```
+
+=== "Rust"
+
+    ```rust
+    // Auth settings are extra database options. Setting a token enables TLS.
+    let mut database = driver.new_database_with_opts([
+        (OptionDatabase::Uri, "sc://spark.example.com:443".into()),
+        (OptionDatabase::Other("adbc.spark.connect.token".into()), "eyJhbGci...".into()),
+        (OptionDatabase::Other("adbc.spark.connect.use_ssl".into()), "true".into()),
+    ])?;
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # Pass token: and use_ssl: as extra keyword arguments. A token implies TLS.
+    ADBC::Database.open(
+      driver: driver,
+      uri: "sc://spark.example.com:443",
+      token: "eyJhbGci...",
+      use_ssl: true,
+    ) do |database|
+      # ...
+    end
     ```
 
 !!! warning
@@ -185,6 +238,34 @@ the URI where the server supports them.
         uri = "sc://spark.example.com:443",
         adbc.spark.connect.token = "eyJhbGci...",
         `adbc.spark.connect.headers.x-request-source` = "analytics-team")
+    ```
+
+=== "Rust"
+
+    ```rust
+    // Attach a gRPC metadata header with the headers.<NAME> option prefix.
+    let mut database = driver.new_database_with_opts([
+        (OptionDatabase::Uri, "sc://spark.example.com:443".into()),
+        (OptionDatabase::Other("adbc.spark.connect.token".into()), "eyJhbGci...".into()),
+        (
+            OptionDatabase::Other("adbc.spark.connect.headers.x-request-source".into()),
+            "analytics-team".into(),
+        ),
+    ])?;
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # Header options use the headers.<NAME> prefix.
+    ADBC::Database.open(
+      driver: driver,
+      uri: "sc://spark.example.com:443",
+      token: "eyJhbGci...",
+      "adbc.spark.connect.headers.x-request-source": "analytics-team",
+    ) do |database|
+      # ...
+    end
     ```
 
 ## Databricks-style bearer token
@@ -249,6 +330,43 @@ token-and-TLS endpoint.
         adbc.spark.connect.use_ssl = "true",
         `adbc.spark.connect.headers.x-databricks-cluster-id` =
             Sys.getenv("DATABRICKS_CLUSTER_ID"))
+    ```
+
+=== "Rust"
+
+    ```rust
+    use std::env;
+
+    // Token over TLS plus the cluster id header, read from the environment.
+    let mut database = driver.new_database_with_opts([
+        (OptionDatabase::Uri, "sc://dbc-12345678-90ab.cloud.databricks.com:443".into()),
+        (
+            OptionDatabase::Other("adbc.spark.connect.token".into()),
+            env::var("DATABRICKS_TOKEN")?.into(),
+        ),
+        (OptionDatabase::Other("adbc.spark.connect.use_ssl".into()), "true".into()),
+        (
+            OptionDatabase::Other("adbc.spark.connect.headers.x-databricks-cluster-id".into()),
+            env::var("DATABRICKS_CLUSTER_ID")?.into(),
+        ),
+    ])?;
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # Token over TLS plus the cluster id header, read from the environment.
+    ADBC::Database.open(
+      driver: driver,
+      uri: "sc://dbc-12345678-90ab.cloud.databricks.com:443",
+      token: ENV.fetch("DATABRICKS_TOKEN"),
+      use_ssl: true,
+      "adbc.spark.connect.headers.x-databricks-cluster-id": ENV.fetch("DATABRICKS_CLUSTER_ID"),
+    ) do |database|
+      database.connect do |connection|
+        puts connection.query("SHOW CATALOGS")
+      end
+    end
     ```
 
 ## Session reuse

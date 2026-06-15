@@ -64,6 +64,33 @@ Arrow `RecordReader` and a row count (`-1` when unknown).
     print(nrow(table))
     ```
 
+=== "Rust"
+
+    ```rust
+    // connection is open (see Using from Rust for setup).
+    let mut statement = connection.new_statement()?;
+    statement.set_sql_query("SELECT id, id * id AS square FROM range(10)")?;
+    let reader = statement.execute()?;   // a RecordBatchReader
+    let mut rows = 0usize;
+    for batch in reader {
+        rows += batch?.num_rows();
+    }
+    println!("{rows}");
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # connection is open (see Using from Ruby for setup).
+    table = connection.query("SELECT id, id * id AS square FROM range(10)")
+    puts table.n_rows
+    ```
+
+!!! note
+    For the full Rust and Ruby setup (loading the driver, opening a
+    connection) see [Using from Rust](usage-rust.md) and
+    [Using from Ruby](usage-ruby.md).
+
 ## Streaming Arrow results
 
 Results arrive as a stream of Arrow record batches. Iterate the reader to
@@ -132,6 +159,32 @@ process arbitrarily large results without holding the whole result in memory.
         total <- total + batch$length
     }
     print(total)
+    ```
+
+=== "Rust"
+
+    ```rust
+    statement.set_sql_query("SELECT * FROM range(1000000)")?;
+    let reader = statement.execute()?;
+
+    // Iterate batches without materializing the whole result.
+    let mut total = 0usize;
+    for batch in reader {
+        total += batch?.num_rows();
+    }
+    println!("{total}");
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # query returns an Arrow record batch reader; iterate it to stream batches.
+    reader = connection.query("SELECT * FROM range(1000000)")
+    total = 0
+    reader.each do |batch|
+      total += batch.n_rows
+    end
+    puts total
     ```
 
 !!! tip
@@ -205,6 +258,29 @@ when the server does not report a count.
     con |> execute_adbc(
         "CREATE TABLE IF NOT EXISTS events (id BIGINT, kind STRING) USING parquet")
     con |> execute_adbc("INSERT INTO events VALUES (1, 'click'), (2, 'view')")
+    ```
+
+=== "Rust"
+
+    ```rust
+    // execute_update() runs statements that do not return rows and returns the
+    // affected row count, or -1 when the server does not report one.
+    statement.set_sql_query(
+        "CREATE TABLE IF NOT EXISTS events (id BIGINT, kind STRING) USING parquet")?;
+    statement.execute_update()?;
+
+    statement.set_sql_query("INSERT INTO events VALUES (1, 'click'), (2, 'view')")?;
+    let affected = statement.execute_update()?;
+    println!("{affected:?}"); // affected rows, or -1
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # query runs the statement; DDL and DML return no rows.
+    connection.query(
+      "CREATE TABLE IF NOT EXISTS events (id BIGINT, kind STRING) USING parquet")
+    connection.query("INSERT INTO events VALUES (1, 'click'), (2, 'view')")
     ```
 
 ## Prepared statements and parameter binding
@@ -293,18 +369,46 @@ The Python paramstyle is `qmark`: use `?` placeholders.
     print(as.data.frame(stream))
     ```
 
-### Named parameters
+=== "Rust"
 
-Spark SQL named markers (`:name`) are supported when you bind by name.
+    ```rust
+    use std::sync::Arc;
 
-```python
-with conn.cursor() as cur:
-    cur.execute(
-        "SELECT * FROM events WHERE id > :min_id",
-        parameters={"min_id": 1},
-    )
-    print(cur.fetchall())
-```
+    use arrow_array::{Int64Array, RecordBatch, StringArray};
+    use arrow_schema::{DataType, Field, Schema};
+
+    statement.set_sql_query("SELECT * FROM events WHERE id > ? AND kind = ?")?;
+    statement.prepare()?;
+
+    // Bind a one-row record; columns map to ? placeholders in order.
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("0", DataType::Int64, false),
+        Field::new("1", DataType::Utf8, false),
+    ]));
+    let params = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(Int64Array::from(vec![1])),
+            Arc::new(StringArray::from(vec!["click"])),
+        ],
+    )?;
+    statement.bind(params)?;
+    let reader = statement.execute()?;
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # Bind values positionally; they map to the ? placeholders in order.
+    table = connection.query(
+      "SELECT * FROM events WHERE id > ? AND kind = ?", 1, "click")
+    puts table
+    ```
+
+!!! note
+    Parameters are bound positionally (the DBAPI `paramstyle` is `qmark`).
+    Binding by name (`:name`) through the driver is not supported; use `?`
+    placeholders and pass values in order.
 
 !!! note
     For repeated execution over many parameter sets, bind a stream of records

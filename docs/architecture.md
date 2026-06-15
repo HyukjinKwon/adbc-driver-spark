@@ -17,13 +17,34 @@ Database, Connection, Statement). It reaches different languages two ways:
   the standard `AdbcDriverInit` entrypoint (and a `AdbcDriverSparkInit` alias),
   so any ADBC driver manager (Python, R, C/C++, Ruby, Rust) can load it.
 
-```
-              +-----------------------------+
-  Go app ---> |  driver/spark (Go core)     |
-              |  adbc.Driver / Database /   | ---> Spark Connect gRPC
-  C/Py/R ---> |  Connection / Statement     |
-  (via DM)    +-----------------------------+
-                 ^ cgo c-shared (AdbcDriverInit)
+```mermaid
+flowchart LR
+    subgraph clients [Client applications]
+        py[Python]
+        c[C / C++]
+        r[R]
+        rust[Rust]
+        rb[Ruby]
+        go[Go]
+    end
+
+    dm["ADBC driver manager"]
+    lib["libadbc_driver_spark.{so,dylib,dll}<br/>(AdbcDriverInit, cgo c-shared)"]
+    core["driver/spark (Go core)<br/>adbc.Driver / Database / Connection / Statement"]
+    server["Spark Connect server"]
+
+    py --> dm
+    c --> dm
+    r --> dm
+    rust --> dm
+    rb --> dm
+    dm --> lib
+    lib --> core
+
+    go -- "native import driver/spark" --> core
+
+    core -- "Spark Connect gRPC<br/>(ExecutePlan, AnalyzePlan, Config, Catalog)" --> server
+    server -- "Arrow IPC record batches" --> core
 ```
 
 ## Talking to Spark Connect
@@ -41,6 +62,21 @@ record batches, which the driver decodes and surfaces as an ADBC result reader.
 Because Spark already speaks Arrow over the wire, there is no row-by-row
 conversion in the driver: batches flow through to your application largely
 untouched.
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Core as driver/spark (Go core)
+    participant Server as Spark Connect server
+
+    App->>Core: SetSqlQuery(sql)
+    App->>Core: ExecuteQuery()
+    Core->>Server: ExecutePlan RPC (SQL relation)
+    loop streamed batches
+        Server-->>Core: ArrowBatch (Arrow IPC)
+        Core-->>App: Arrow RecordReader batch
+    end
+```
 
 ### Reattachable execution
 

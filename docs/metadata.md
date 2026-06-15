@@ -98,6 +98,38 @@ pattern.
     print(objects)
     ```
 
+=== "Rust"
+
+    ```rust
+    use adbc_core::options::ObjectDepth;
+
+    // get_objects walks the catalog/schema/table/column hierarchy and returns a
+    // RecordBatchReader. Pass None for filters you do not want to apply.
+    let reader = connection.get_objects(
+        ObjectDepth::All,
+        None,              // catalog
+        Some("default"),   // db_schema
+        None,              // table_name
+        None,              // table_type
+        None,              // column_name
+    )?;
+    for batch in reader {
+        println!("{:?}", batch?);
+    }
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # get_objects returns the hierarchy as an Arrow record batch reader.
+    reader = connection.get_objects(depth: :all, db_schema: "default")
+    puts reader.read_all
+    ```
+
+!!! note
+    For the full Rust and Ruby setup see [Using from Rust](usage-rust.md) and
+    [Using from Ruby](usage-ruby.md).
+
 Equivalently, you can use SQL discovery statements such as `SHOW CATALOGS`,
 `SHOW DATABASES`, and `SHOW TABLES`, which return ordinary Arrow result sets.
 
@@ -159,6 +191,26 @@ with conn.cursor() as cur:
     print(schema)
     ```
 
+=== "Rust"
+
+    ```rust
+    // get_table_schema returns the Arrow schema of a single table.
+    let schema = connection.get_table_schema(
+        Some("spark_catalog"), // catalog
+        Some("default"),       // db_schema
+        "events",              // table_name
+    )?;
+    println!("{schema}");
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    schema = connection.get_table_schema(
+      "events", catalog: "spark_catalog", db_schema: "default")
+    puts schema
+    ```
+
 ## Table types
 
 === "Python"
@@ -197,6 +249,23 @@ with conn.cursor() as cur:
         adbc_connection_get_table_types() |>
         as.data.frame()
     print(table_types)   # e.g. TABLE, VIEW
+    ```
+
+=== "Rust"
+
+    ```rust
+    // get_table_types returns the reported table types as a RecordBatchReader.
+    let reader = connection.get_table_types()?;
+    for batch in reader {
+        println!("{:?}", batch?);   // e.g. "TABLE", "VIEW"
+    }
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    reader = connection.get_table_types
+    puts reader.read_all   # e.g. TABLE, VIEW
     ```
 
 ## Driver and server info
@@ -241,6 +310,25 @@ the Spark vendor name and version.
         adbc_connection_get_info() |>
         as.data.frame()
     print(info)
+    ```
+
+=== "Rust"
+
+    ```rust
+    // Pass None to request all info codes; the result is a RecordBatchReader
+    // of info code/value pairs.
+    let reader = connection.get_info(None)?;
+    for batch in reader {
+        println!("{:?}", batch?);
+    }
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    # Pass no codes to request all of them.
+    reader = connection.get_info
+    puts reader.read_all
     ```
 
 !!! note

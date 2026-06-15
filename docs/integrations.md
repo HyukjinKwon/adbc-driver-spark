@@ -7,7 +7,7 @@ glue. The same patterns you would use with any other ADBC driver (PostgreSQL,
 SQLite, Snowflake) work here against **Apache Spark Connect**.
 
 Every example on this page is executed against a live Spark Connect server on
-every CI run (Spark 4.0.x and 4.1.x), so it stays correct. The runnable sources
+every CI run (Spark 3.5.x, 4.0.x, and 4.1.x), so it stays correct. The runnable sources
 live under [`examples/python/`](https://github.com/HyukjinKwon/adbc-driver-spark/tree/main/examples/python).
 
 !!! note "Install the integration you need"

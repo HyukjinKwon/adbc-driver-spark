@@ -122,8 +122,8 @@ with conn.cursor() as cur:
 
 ## Parameters
 
-The module `paramstyle` is `qmark`, so use `?` placeholders for positional
-binding. Named binding with `:name` markers is also supported.
+The module `paramstyle` is `qmark`: use `?` placeholders and pass parameters
+positionally. Binding by name (`:name`) through the DBAPI is not supported.
 
 ```python
 with conn.cursor() as cur:

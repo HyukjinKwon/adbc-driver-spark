@@ -82,19 +82,4 @@ Once built, place the library somewhere on your loader path
 (`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS, `PATH` on Windows),
 or pass its absolute path to the driver manager.
 
-## Verify the install
-
-=== "Python"
-
-    ```python
-    import adbc_driver_spark
-    print(adbc_driver_spark.__version__)
-    ```
-
-=== "Go"
-
-    ```bash
-    go list -m github.com/HyukjinKwon/adbc-driver-spark
-    ```
-
 Once installed, head to the [Quickstart](quickstart.md).
