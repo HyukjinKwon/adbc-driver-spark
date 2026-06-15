@@ -62,7 +62,6 @@ def test_parameter_binding(connection):
 
 
 def test_metadata_table_types(connection):
-    # ADBC metadata call surfaced through the DBAPI adbc_* helpers.
-    with connection.cursor() as cur:
-        table_types = cur.adbc_get_table_types()
-        assert "TABLE" in table_types or "VIEW" in table_types
+    # ADBC metadata helpers live on the Connection, not the Cursor.
+    table_types = connection.adbc_get_table_types()
+    assert "TABLE" in table_types or "VIEW" in table_types
