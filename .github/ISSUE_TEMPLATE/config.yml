@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://hyukjinkwon.github.io/adbc-driver-spark/
+    about: Read the user guide, configuration reference, and troubleshooting page first.
+  - name: Questions and discussion
+    url: https://github.com/HyukjinKwon/adbc-driver-spark/discussions
+    about: Ask usage questions or propose ideas in Discussions.

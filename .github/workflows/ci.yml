@@ -1,0 +1,208 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25.x"
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  go:
+    name: Go build & test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Download modules
+        run: go mod download
+      - name: Verify go.mod is tidy
+        if: runner.os == 'Linux'
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - name: Build
+        run: go build -v ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -shuffle=on -coverprofile=coverage.out ./...
+      - name: Upload coverage
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: coverage.out
+          if-no-files-found: ignore
+
+  c-shared:
+    name: C-ABI shared library (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            lib: libadbc_driver_spark.so
+          - os: macos-latest
+            lib: libadbc_driver_spark.dylib
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Build shared library
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          go build -tags driverlib -buildmode=c-shared \
+            -o "${{ matrix.lib }}" ./c
+      - name: Inspect exported init symbol
+        shell: bash
+        run: |
+          set -eux
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            nm -gU "${{ matrix.lib }}" | grep -i AdbcDriverInit
+          else
+            nm -D "${{ matrix.lib }}" | grep -i AdbcDriverInit
+          fi
+      - name: Upload shared library
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-lib-${{ matrix.os }}
+          path: ${{ matrix.lib }}
+
+  lint-go:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l $(git ls-files '*.go' | grep -v '/proto/'))
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-ed:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  proto:
+    name: Proto lint & codegen sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ github.token }}
+      - name: Install protoc-gen-go plugins
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: buf lint
+        run: buf lint proto
+      - name: Regenerate and check for drift
+        run: |
+          buf generate proto
+          if ! git diff --exit-code -- internal/sparkconnect/proto; then
+            echo "::error::Generated Spark Connect stubs are out of date. Run 'buf generate proto' and commit."
+            exit 1
+          fi
+
+  python:
+    name: Python lint, typecheck & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy build pytest pyarrow
+      - name: Ruff
+        run: ruff check python
+      - name: Mypy
+        run: mypy python/adbc_driver_spark || true
+      - name: Build shared library into the package
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          go build -tags driverlib -buildmode=c-shared \
+            -o python/adbc_driver_spark/libadbc_driver_spark.so ./c
+      - name: Install package
+        run: pip install ./python
+      - name: Unit tests (no server required)
+        run: |
+          if [ -d python/tests ]; then
+            pytest -v python/tests
+          else
+            echo "No python/tests directory yet; skipping."
+          fi
+
+  ci-success:
+    name: CI success
+    if: always()
+    needs: [go, c-shared, lint-go, proto, python]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs succeeded
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "Job results: $results"
+          for r in $results; do
+            if [ "$r" != "success" ]; then
+              echo "::error::A required job did not succeed."
+              exit 1
+            fi
+          done

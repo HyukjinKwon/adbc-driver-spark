@@ -1,0 +1,252 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag or ref to build (dry-run; no GitHub Release is published)"
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.25.x"
+  PYTHON_VERSION: "3.11"
+  LIB_BASENAME: libadbc_driver_spark
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Standalone C-ABI shared libraries. These are the artifacts that make the
+  # driver usable from C/C++, R, Ruby, Rust, etc. via the ADBC Driver Manager.
+  # --------------------------------------------------------------------------
+  shared-libs:
+    name: Shared lib (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            os: ubuntu-latest
+            ext: so
+          - target: linux-aarch64
+            os: ubuntu-24.04-arm
+            ext: so
+          - target: macos-x86_64
+            os: macos-15-intel
+            ext: dylib
+          - target: macos-arm64
+            os: macos-14
+            ext: dylib
+          - target: windows-x86_64
+            os: windows-latest
+            ext: dll
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Build shared library
+        shell: bash
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          set -eux
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            VERSION="$(sed -n 's/.*__version__ = "\(.*\)"/\1/p' python/adbc_driver_spark/_version.py)"
+          fi
+          out="${LIB_BASENAME}.${{ matrix.ext }}"
+          go build -tags driverlib -buildmode=c-shared \
+            -ldflags "-s -w -X github.com/HyukjinKwon/adbc-driver-spark/driver/spark.Version=${VERSION}" \
+            -o "dist-lib/${out}" ./c
+          cp LICENSE NOTICE dist-lib/ 2>/dev/null || true
+      - name: Package
+        shell: bash
+        run: |
+          set -eux
+          cd dist-lib
+          tar -czf "../${LIB_BASENAME}-${{ matrix.target }}.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lib-${{ matrix.target }}
+          path: ${{ env.LIB_BASENAME }}-${{ matrix.target }}.tar.gz
+
+  # --------------------------------------------------------------------------
+  # Platform Python wheels. The shared library is bundled as package data, so
+  # one wheel per platform (py3-none-<platform>) rather than per CPython ABI.
+  # --------------------------------------------------------------------------
+  wheels:
+    name: Wheel (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            os: ubuntu-latest
+            ext: so
+          - target: linux-aarch64
+            os: ubuntu-24.04-arm
+            ext: so
+          - target: macos-x86_64
+            os: macos-15-intel
+            ext: dylib
+          - target: macos-arm64
+            os: macos-14
+            ext: dylib
+          - target: windows-x86_64
+            os: windows-latest
+            ext: dll
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build shared library into the Python package
+        shell: bash
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          set -eux
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            VERSION="$(sed -n 's/.*__version__ = "\(.*\)"/\1/p' python/adbc_driver_spark/_version.py)"
+          fi
+          go build -tags driverlib -buildmode=c-shared \
+            -ldflags "-s -w -X github.com/HyukjinKwon/adbc-driver-spark/driver/spark.Version=${VERSION}" \
+            -o "python/adbc_driver_spark/${LIB_BASENAME}.${{ matrix.ext }}" ./c
+      - name: Build wheel
+        shell: bash
+        run: |
+          set -eux
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir wheelhouse ./python
+      - name: Repair Linux wheel (manylinux tag)
+        if: startsWith(matrix.target, 'linux')
+        shell: bash
+        run: |
+          set -eux
+          pip install auditwheel
+          for whl in wheelhouse/*.whl; do
+            # Best effort: a Go c-shared lib only needs glibc; if repair is not
+            # possible the platform-tagged wheel is still attached to the release.
+            auditwheel repair "$whl" --wheel-dir repaired || cp "$whl" repaired/
+          done
+          rm -rf wheelhouse && mv repaired wheelhouse
+      - name: Repair macOS wheel
+        if: startsWith(matrix.target, 'macos')
+        shell: bash
+        run: |
+          set -eux
+          pip install delocate
+          for whl in wheelhouse/*.whl; do
+            delocate-wheel -w repaired "$whl" || cp "$whl" repaired/
+          done
+          rm -rf wheelhouse && mv repaired wheelhouse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: wheelhouse/*.whl
+
+  sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist --outdir dist ./python
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  github-release:
+    name: Publish GitHub Release
+    needs: [shared-libs, wheels, sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect assets
+        run: |
+          set -eux
+          mkdir -p upload
+          find artifacts -type f \( -name '*.whl' -o -name '*.tar.gz' \) -exec cp {} upload/ \;
+          ls -l upload
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          tag="${GITHUB_REF_NAME}"
+          notes="See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${tag}/CHANGELOG.md)."
+          gh release create "$tag" upload/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "$tag" \
+            --notes "$notes" \
+            --verify-tag
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [wheels, sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/adbc-driver-spark
+    permissions:
+      id-token: write  # OIDC trusted publishing; no API token needed.
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten distributions
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.whl' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
+          ls -l dist
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: true

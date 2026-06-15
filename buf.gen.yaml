@@ -1,0 +1,12 @@
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: github.com/HyukjinKwon/adbc-driver-spark/internal/sparkconnect/proto
+plugins:
+  - plugin: go
+    out: internal/sparkconnect/proto
+    opt: paths=source_relative
+  - plugin: go-grpc
+    out: internal/sparkconnect/proto
+    opt: paths=source_relative

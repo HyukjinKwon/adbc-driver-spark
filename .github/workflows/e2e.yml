@@ -1,0 +1,169 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# End-to-end tests against a live Spark Connect server.
+#
+# We test compatibility against BOTH the current target (Spark 4.1.x) and the
+# previous line (Spark 4.0.x) on every run, mirroring the live-Spark matrix used
+# by the reference clients spark-connect-ruby and spark-connect-scala3.
+#
+# Each matrix entry downloads the official Spark distribution from the Apache
+# archive and starts its bundled Spark Connect server. Spark 4.0.0+ ships only a
+# Scala 2.13 build and bundles spark-connect, so no extra --packages are needed.
+# The docker-based server under tests/docker/ remains available for local
+# development and is parameterised by the same SPARK_VERSION.
+
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "driver/**"
+      - "internal/**"
+      - "c/**"
+      - "python/**"
+      - "tests/e2e/**"
+      - ".github/workflows/e2e.yml"
+  workflow_dispatch:
+  schedule:
+    # Nightly at 04:17 UTC.
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25.x"
+  PYTHON_VERSION: "3.11"
+  SPARK_CONNECT_URI: sc://localhost:15002
+  SPARK_REMOTE: sc://localhost:15002
+
+jobs:
+  e2e:
+    name: Spark ${{ matrix.spark }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Current target line (latest 4.1.x patch).
+          - spark: "4.1.2"
+            dist: spark-4.1.2-bin-hadoop3
+          # Previous line, kept green for backward compatibility (latest 4.0.x).
+          - spark: "4.0.3"
+            dist: spark-4.0.3-bin-hadoop3
+    env:
+      SPARK_VERSION: ${{ matrix.spark }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Spark distribution
+        id: spark-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/spark
+          key: ${{ matrix.dist }}
+
+      - name: Download Spark ${{ matrix.spark }}
+        if: steps.spark-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/spark
+          curl -fsSL "https://archive.apache.org/dist/spark/spark-${{ matrix.spark }}/${{ matrix.dist }}.tgz" \
+            | tar xz -C ~/spark --strip-components=1
+
+      - name: Start Spark Connect server
+        run: |
+          # Spark 4.0.0+ bundles the Connect server in the Scala 2.13 build, so
+          # no --packages are required. start-connect-server.sh daemonizes, so we
+          # must NOT set SPARK_NO_DAEMONIZE here.
+          ~/spark/sbin/start-connect-server.sh --conf spark.log.level=WARN
+          for i in $(seq 1 60); do
+            if bash -c "exec 3<>/dev/tcp/localhost/15002" 2>/dev/null; then
+              echo "Spark Connect ${{ matrix.spark }} is accepting connections."
+              exit 0
+            fi
+            echo "waiting for Spark Connect ($i)..."
+            sleep 5
+          done
+          echo "::error::Spark Connect server never became reachable."
+          tail -n 200 ~/spark/logs/*.out 2>/dev/null || true
+          exit 1
+
+      - name: Go e2e suite
+        run: go test -tags e2e -v -timeout 20m ./tests/e2e/...
+
+      - name: Build shared library and install Python package
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          go build -tags driverlib -buildmode=c-shared \
+            -o python/adbc_driver_spark/libadbc_driver_spark.so ./c
+          python -m pip install --upgrade pip
+          pip install -r tests/e2e/requirements.txt
+          pip install ./python
+
+      - name: Python e2e suite
+        run: |
+          pytest -v tests/e2e/
+          # Package-level DBAPI integration tests (honor SPARK_CONNECT_URI, set
+          # above; self-skip when unset). Requested by M3 for extra coverage.
+          pytest -v python/tests/test_integration.py
+
+      - name: Validate Python ecosystem examples
+        # Every runnable example under examples/python/ is executed against the
+        # live Spark Connect server so the documented pandas, polars, DuckDB, and
+        # pyarrow integrations cannot silently rot. The auth/TLS example needs
+        # real credentials, so it is skipped here.
+        run: |
+          pip install polars duckdb "pandas>=2.0"
+          rc=0
+          for f in examples/python/[0-9]*.py; do
+            case "$f" in
+              *06_auth_tls.py) echo "skip $f (needs credentials)"; continue ;;
+            esac
+            echo "::group::run $f"
+            if ! python "$f"; then
+              echo "::error file=$f::example failed"
+              rc=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $rc
+
+      - name: Dump Spark logs on failure
+        if: failure()
+        run: tail -n 300 ~/spark/logs/*.out 2>/dev/null || true

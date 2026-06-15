@@ -1,0 +1,6 @@
+# Python dependencies for the end-to-end test suite (tests/e2e).
+# The driver itself (adbc_driver_spark) is installed separately from the built
+# wheel; see the e2e GitHub Actions workflow.
+pytest>=7.4
+pyarrow>=14.0
+pandas>=2.0

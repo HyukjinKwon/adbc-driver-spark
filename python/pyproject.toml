@@ -1,0 +1,96 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the License).
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adbc-driver-spark"
+dynamic = ["version"]
+description = "ADBC (Arrow Database Connectivity) driver for Apache Spark Connect"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Hyukjin Kwon" }]
+keywords = [
+    "apache arrow",
+    "adbc",
+    "apache spark",
+    "spark connect",
+    "database",
+    "arrow",
+    "dbapi",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database :: Front-Ends",
+]
+dependencies = [
+    "adbc-driver-manager>=1.0.0",
+    "pyarrow>=14.0.0",
+]
+
+[project.optional-dependencies]
+pandas = ["pandas>=1.0.0"]
+polars = ["polars>=0.20.0"]
+test = [
+    "pytest>=7.0",
+    "pandas>=1.0.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pandas>=1.0.0",
+    "ruff>=0.4.0",
+    "mypy>=1.8.0",
+    "build>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/HyukjinKwon/adbc-driver-spark"
+Documentation = "https://hyukjinkwon.github.io/adbc-driver-spark/"
+Source = "https://github.com/HyukjinKwon/adbc-driver-spark"
+"Bug Tracker" = "https://github.com/HyukjinKwon/adbc-driver-spark/issues"
+Changelog = "https://github.com/HyukjinKwon/adbc-driver-spark/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+# The native shared library is produced by the Go build and copied into the
+# package directory before the wheel is built (see ../Makefile `python-wheel`
+# and the release workflow). It is platform specific, so wheels are not pure.
+packages = ["adbc_driver_spark"]
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = { attr = "adbc_driver_spark._version.__version__" }
+
+[tool.setuptools.package-data]
+adbc_driver_spark = ["*.so", "*.dylib", "*.dll", "py.typed"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that require a live Spark Connect server (set SPARK_CONNECT_URI)",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_unused_ignores = true
+ignore_missing_imports = true

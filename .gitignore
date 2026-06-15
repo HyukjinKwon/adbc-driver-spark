@@ -1,0 +1,52 @@
+# ---- Local-only inter-agent coordination and scratch (never published) ----
+.team/
+.hjk_work/
+.claude/
+
+# ---- Go ----
+/go/bin/
+# Stray `go build` output dropped at the repo root (the module builds with no
+# `-o`, so a bare `./go` executable here is always a build artifact, not source).
+/go
+*.test
+*.out
+vendor/
+
+# ---- Native build outputs (shared libraries are built on demand / by release CI) ----
+*.so
+*.dylib
+*.dll
+*.a
+*.o
+*.obj
+*.h.gch
+# Header emitted next to the c-shared build output (the .h vendored under
+# c/arrow-adbc/ and c/utils.h are source and are NOT matched by this).
+libadbc_driver_spark.h
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+wheelhouse/
+.venv/
+venv/
+env/
+.tox/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---- Docs (MkDocs build output) ----
+site/
+
+# ---- Editor / OS ----
+.idea/
+.vscode/
+.DS_Store
+*.log

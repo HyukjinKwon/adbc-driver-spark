@@ -1,0 +1,30 @@
+# golangci-lint configuration (v2 schema).
+# Run locally with: golangci-lint run
+version: "2"
+
+run:
+  # Lint the cgo C-ABI bridge as well.
+  build-tags:
+    - driverlib
+
+linters:
+  # The "standard" set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  settings:
+    staticcheck:
+      checks:
+        - all
+  exclusions:
+    generated: lax
+    # Generated Spark Connect protobuf/gRPC stubs are not ours to lint.
+    paths:
+      - internal/sparkconnect/proto
+      - third_party
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    paths:
+      - internal/sparkconnect/proto

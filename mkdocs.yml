@@ -1,0 +1,61 @@
+site_name: ADBC Driver for Spark Connect
+site_description: An Apache Arrow ADBC driver for Apache Spark Connect. Arrow-native, multi-language, production grade.
+site_url: https://hyukjinkwon.github.io/adbc-driver-spark/
+repo_url: https://github.com/HyukjinKwon/adbc-driver-spark
+repo_name: HyukjinKwon/adbc-driver-spark
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.instant
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+  # Single fixed (light) palette. The dark/light toggle button is intentionally
+  # removed per maintainer preference. Do NOT re-add a `toggle:` here.
+  palette:
+    scheme: default
+    primary: deep orange
+    accent: deep orange
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      use_pygments: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Quickstart: quickstart.md
+  - Connecting and Authentication: connecting.md
+  - Querying Data: querying.md
+  - Python DBAPI: python-dbapi.md
+  - Ecosystem Integrations: integrations.md
+  - Metadata and Catalogs: metadata.md
+  - Type Mapping: type-mapping.md
+  - Configuration Reference: configuration.md
+  - Using from C and C++: usage-c.md
+  - Using from Go: usage-go.md
+  - Using from R: usage-r.md
+  - Examples: examples.md
+  - Compatibility and Conformance: compatibility.md
+  - Architecture: architecture.md
+  - Troubleshooting: troubleshooting.md
+  - Contributing: contributing.md

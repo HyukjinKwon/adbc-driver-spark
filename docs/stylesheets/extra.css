@@ -1,0 +1,26 @@
+/* Small refinements on top of the Material deep-orange theme. */
+
+.md-typeset h1,
+.md-typeset h2 {
+  font-weight: 600;
+}
+
+/* Slightly tighter tables for the many reference grids in these docs. */
+.md-typeset table:not([class]) {
+  font-size: 0.78rem;
+}
+
+.md-typeset table:not([class]) th {
+  font-weight: 600;
+}
+
+/* Make inline code stand out a touch more against the light scheme. */
+.md-typeset code {
+  border-radius: 0.2rem;
+}
+
+/* Home page hero spacing. */
+.md-typeset .adbc-tagline {
+  font-size: 1.05rem;
+  color: var(--md-default-fg-color--light);
+}
