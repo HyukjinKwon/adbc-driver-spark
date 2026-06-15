@@ -90,9 +90,11 @@ nav:
       - Configuration Reference: configuration.md
   - Languages:
       - Using from Python: usage-python.md
-      - Using from C and C++: usage-c.md
       - Using from Go: usage-go.md
+      - Using from C and C++: usage-c.md
+      - Using from Rust: usage-rust.md
       - Using from R: usage-r.md
+      - Using from Ruby: usage-ruby.md
   - Reference:
       - Examples: examples.md
       - Compatibility and Conformance: compatibility.md

@@ -84,6 +84,20 @@ for R, [`adbcdrivermanager`](https://arrow.apache.org/adbc/current/r/adbcdriverm
 default `AdbcDriverInit` entrypoint. See [Using from R](usage-r.md) for the full
 listing and run commands.
 
+## Rust
+
+In [`examples/rust/`](https://github.com/HyukjinKwon/adbc-driver-spark/tree/main/examples/rust):
+a Cargo project that loads `libadbc_driver_spark` through the
+[`adbc_driver_manager`](https://crates.io/crates/adbc_driver_manager) crate and
+reads the Arrow result. See [Using from Rust](usage-rust.md).
+
+## Ruby
+
+In [`examples/ruby/`](https://github.com/HyukjinKwon/adbc-driver-spark/tree/main/examples/ruby):
+a script that loads `libadbc_driver_spark` through
+[Red ADBC](https://rubygems.org/gems/red-adbc) (the `adbc` gem) and prints the
+Arrow table. See [Using from Ruby](usage-ruby.md).
+
 !!! tip
     Set the URI through an environment variable so the same example works
     against a local server and a remote one, for example

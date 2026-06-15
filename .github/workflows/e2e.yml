@@ -228,6 +228,38 @@ jobs:
           Rscript -e 'install.packages("adbcdrivermanager")'
           SPARK_DRIVER="$PWD/python/adbc_driver_spark/libadbc_driver_spark.so" Rscript examples/r/quickstart.R
 
+      - name: Validate Rust example
+        # Rust loads the shared library through the adbc_driver_manager crate
+        # (which builds the driver manager itself, no system package). cargo is
+        # preinstalled on the runner.
+        if: matrix.cr == 'true'
+        env:
+          SPARK_REMOTE: sc://localhost:15002
+        run: |
+          set -euo pipefail
+          SPARK_DRIVER="$PWD/python/adbc_driver_spark/libadbc_driver_spark.so" \
+            cargo run --quiet --manifest-path examples/rust/Cargo.toml
+
+      - name: Set up Ruby
+        if: matrix.cr == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Validate Ruby example
+        # Red ADBC (the adbc gem) loads the shared library through the ADBC GLib
+        # driver manager. rubygems-requirements-system installs the GLib system
+        # library automatically.
+        if: matrix.cr == 'true'
+        env:
+          SPARK_REMOTE: sc://localhost:15002
+        run: |
+          set -euo pipefail
+          gem install rubygems-requirements-system
+          gem install red-adbc
+          SPARK_DRIVER="$PWD/python/adbc_driver_spark/libadbc_driver_spark.so" \
+            ruby examples/ruby/quickstart.rb
+
       - name: Dump Spark logs on failure
         if: failure()
         run: tail -n 300 ~/spark/logs/*.out 2>/dev/null || true

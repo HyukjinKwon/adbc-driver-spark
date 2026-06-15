@@ -41,6 +41,10 @@ env/
 .coverage
 htmlcov/
 
+# ---- Rust example build output ----
+target/
+examples/rust/Cargo.lock
+
 # ---- Docs (MkDocs build output) ----
 site/
 

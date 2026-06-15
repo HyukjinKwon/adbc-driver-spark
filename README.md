@@ -120,9 +120,11 @@ func main() {
 }
 ```
 
-See the [examples](examples/) directory and the
-[documentation](https://hyukjinkwon.github.io/adbc-driver-spark/quickstart/)
-for C, R, and more.
+Runnable examples for **Python, Go, C, R, Rust, and Ruby** live in the
+[examples](examples/) directory, and the Python, C, R, Rust, and Ruby examples
+are run against a live Spark Connect server on every CI run. See the
+[documentation](https://hyukjinkwon.github.io/adbc-driver-spark/quickstart/) for
+per-language guides.
 
 ## Connecting and authentication
 

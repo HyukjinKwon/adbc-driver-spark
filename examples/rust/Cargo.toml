@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "spark-adbc-quickstart"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# adbc_core provides the ADBC traits; adbc_driver_manager loads any C-ABI ADBC
+# driver shared library at run time (dlopen) and resolves its AdbcDriverInit
+# entrypoint. No system package is required.
+adbc_core = "0.23"
+adbc_driver_manager = "0.23"
