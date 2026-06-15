@@ -37,8 +37,16 @@ type connection struct {
 
 var _ adbc.Connection = (*connection)(nil)
 
+// errConnClosed reports use of a connection after Close.
+func errConnClosed() error {
+	return adbc.Error{Msg: "spark: connection is closed", Code: adbc.StatusInvalidState}
+}
+
 // NewStatement initializes a new statement bound to this connection.
 func (c *connection) NewStatement() (adbc.Statement, error) {
+	if c.client == nil {
+		return nil, errConnClosed()
+	}
 	return &statement{cnxn: c, alloc: c.alloc}, nil
 }
 
@@ -77,6 +85,9 @@ func (c *connection) Rollback(context.Context) error {
 // not expose schema metadata as Arrow directly, so the schema is obtained by
 // describing the fully-qualified relation with a zero-row projection.
 func (c *connection) GetTableSchema(ctx context.Context, catalog, dbSchema *string, tableName string) (*arrow.Schema, error) {
+	if c.client == nil {
+		return nil, errConnClosed()
+	}
 	ref := quoteQualifiedName(catalog, dbSchema, tableName)
 	schema, err := c.client.SchemaOf(ctx, "SELECT * FROM "+ref)
 	if err != nil {
@@ -87,17 +98,26 @@ func (c *connection) GetTableSchema(ctx context.Context, catalog, dbSchema *stri
 
 // GetTableTypes returns the table types Spark exposes through its catalog.
 func (c *connection) GetTableTypes(context.Context) (array.RecordReader, error) {
+	if c.client == nil {
+		return nil, errConnClosed()
+	}
 	return buildTableTypes(c.alloc), nil
 }
 
 // GetInfo returns driver and vendor metadata for the requested info codes.
 func (c *connection) GetInfo(ctx context.Context, infoCodes []adbc.InfoCode) (array.RecordReader, error) {
+	if c.client == nil {
+		return nil, errConnClosed()
+	}
 	return c.buildInfo(ctx, infoCodes)
 }
 
 // GetObjects returns a hierarchical view of catalogs, schemas, tables, and
 // columns, applying the supplied search patterns.
 func (c *connection) GetObjects(ctx context.Context, depth adbc.ObjectDepth, catalog, dbSchema, tableName, columnName *string, tableType []string) (array.RecordReader, error) {
+	if c.client == nil {
+		return nil, errConnClosed()
+	}
 	return c.buildObjects(ctx, depth, catalog, dbSchema, tableName, columnName, tableType)
 }
 

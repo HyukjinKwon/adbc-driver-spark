@@ -78,8 +78,22 @@ func (c *connection) stringInfo() map[adbc.InfoCode]string {
 
 // buildInfo returns driver/vendor metadata for the requested info codes. If
 // infoCodes is empty, every known code is returned.
-func (c *connection) buildInfo(_ context.Context, infoCodes []adbc.InfoCode) (array.RecordReader, error) {
+func (c *connection) buildInfo(ctx context.Context, infoCodes []adbc.InfoCode) (array.RecordReader, error) {
 	strInfo := c.stringInfo()
+
+	// The vendor (Spark server) version requires a round trip, so fetch it only
+	// when it is requested (or when all codes are requested), best-effort.
+	wantVendorVersion := len(infoCodes) == 0
+	for _, code := range infoCodes {
+		if code == adbc.InfoVendorVersion {
+			wantVendorVersion = true
+		}
+	}
+	if wantVendorVersion {
+		if v, err := c.client.ServerSparkVersion(ctx); err == nil && v != "" {
+			strInfo[adbc.InfoVendorVersion] = v
+		}
+	}
 
 	want := infoCodes
 	if len(want) == 0 {

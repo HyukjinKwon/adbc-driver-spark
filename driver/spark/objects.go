@@ -51,7 +51,7 @@ func (c *connection) buildObjects(ctx context.Context, depth adbc.ObjectDepth, c
 		}
 
 		dbSchemaListBldr.Append(true)
-		if err := c.appendDBSchemas(ctx, dbSchemaListBldr.ValueBuilder().(*array.StructBuilder), depth, cat, dbSchema, tableName, tableTypes); err != nil {
+		if err := c.appendDBSchemas(ctx, dbSchemaListBldr.ValueBuilder().(*array.StructBuilder), depth, cat, dbSchema, tableName, columnName, tableTypes); err != nil {
 			return nil, err
 		}
 	}
@@ -62,7 +62,7 @@ func (c *connection) buildObjects(ctx context.Context, depth adbc.ObjectDepth, c
 	return rr, nil
 }
 
-func (c *connection) appendDBSchemas(ctx context.Context, sb *array.StructBuilder, depth adbc.ObjectDepth, catalog string, dbSchema, tableName *string, tableTypes []string) error {
+func (c *connection) appendDBSchemas(ctx context.Context, sb *array.StructBuilder, depth adbc.ObjectDepth, catalog string, dbSchema, tableName, columnName *string, tableTypes []string) error {
 	schemas, err := c.listSchemas(ctx, catalog, dbSchema)
 	if err != nil {
 		return err
@@ -81,14 +81,14 @@ func (c *connection) appendDBSchemas(ctx context.Context, sb *array.StructBuilde
 		}
 
 		tablesListBldr.Append(true)
-		if err := c.appendTables(ctx, tablesListBldr.ValueBuilder().(*array.StructBuilder), depth, catalog, sch, tableName, tableTypes); err != nil {
+		if err := c.appendTables(ctx, tablesListBldr.ValueBuilder().(*array.StructBuilder), depth, catalog, sch, tableName, columnName, tableTypes); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *connection) appendTables(ctx context.Context, sb *array.StructBuilder, depth adbc.ObjectDepth, catalog, schema string, tableName *string, tableTypes []string) error {
+func (c *connection) appendTables(ctx context.Context, sb *array.StructBuilder, depth adbc.ObjectDepth, catalog, schema string, tableName, columnName *string, tableTypes []string) error {
 	tables, err := c.listTables(ctx, catalog, schema, tableName)
 	if err != nil {
 		return err
@@ -100,9 +100,13 @@ func (c *connection) appendTables(ctx context.Context, sb *array.StructBuilder, 
 	constraintsListBldr := sb.FieldBuilder(3).(*array.ListBuilder)
 
 	for _, tbl := range tables {
+		// Honor a non-empty table_type filter (ADBC contract).
+		if !tableTypeAllowed(tbl.tableType, tableTypes) {
+			continue
+		}
 		sb.Append(true)
-		nameBldr.Append(tbl)
-		typeBldr.Append("TABLE")
+		nameBldr.Append(tbl.name)
+		typeBldr.Append(tbl.tableType)
 		// Spark Connect does not expose constraint metadata; emit an empty list.
 		constraintsListBldr.Append(true)
 
@@ -112,7 +116,7 @@ func (c *connection) appendTables(ctx context.Context, sb *array.StructBuilder, 
 		}
 
 		columnsListBldr.Append(true)
-		if err := c.appendColumns(ctx, columnsListBldr.ValueBuilder().(*array.StructBuilder), catalog, schema, tbl); err != nil {
+		if err := c.appendColumns(ctx, columnsListBldr.ValueBuilder().(*array.StructBuilder), catalog, schema, tbl.name, columnName); err != nil {
 			// A table can disappear or be inaccessible between listing and
 			// describing; treat columns as unavailable rather than failing the
 			// whole call.
@@ -122,7 +126,7 @@ func (c *connection) appendTables(ctx context.Context, sb *array.StructBuilder, 
 	return nil
 }
 
-func (c *connection) appendColumns(ctx context.Context, sb *array.StructBuilder, catalog, schema, table string) error {
+func (c *connection) appendColumns(ctx context.Context, sb *array.StructBuilder, catalog, schema, table string, columnName *string) error {
 	cat, sch := catalog, schema
 	tableArrowSchema, err := c.GetTableSchema(ctx, &cat, &sch, table)
 	if err != nil {
@@ -132,9 +136,15 @@ func (c *connection) appendColumns(ctx context.Context, sb *array.StructBuilder,
 	nameBldr := sb.FieldBuilder(0).(*array.StringBuilder)
 	ordinalBldr := sb.FieldBuilder(1).(*array.Int32Builder)
 
+	filter := columnName != nil && *columnName != ""
 	for i, field := range tableArrowSchema.Fields() {
+		// ADBC treats a non-empty column_name as a LIKE filter on column names.
+		if filter && !likeMatch(*columnName, field.Name) {
+			continue
+		}
 		sb.Append(true)
 		nameBldr.Append(field.Name)
+		// ordinal_position is the column's 1-based position in the table.
 		ordinalBldr.Append(int32(i + 1))
 		// Remaining xdbc_* fields are optional and reported as null.
 		for f := 2; f < sb.NumField(); f++ {
@@ -179,12 +189,79 @@ func (c *connection) listSchemas(ctx context.Context, catalog string, dbSchema *
 	return names, nil
 }
 
-func (c *connection) listTables(ctx context.Context, catalog, schema string, tableName *string) ([]string, error) {
+// tableEntry is a table name paired with its ADBC table type.
+type tableEntry struct {
+	name      string
+	tableType string
+}
+
+// listTables runs SHOW TABLES and returns each table with its type. Spark marks
+// session-scoped temporary views via the isTemporary column; those are reported
+// as TEMPORARY, everything else as TABLE.
+func (c *connection) listTables(ctx context.Context, catalog, schema string, tableName *string) ([]tableEntry, error) {
 	sql := "SHOW TABLES IN " + quoteIdent(catalog) + "." + quoteIdent(schema)
 	if tableName != nil && *tableName != "" {
 		sql += " LIKE '" + escapeLike(*tableName) + "'"
 	}
-	return c.queryStrings(ctx, sql, "tableName")
+	reader, err := c.client.ExecuteSQL(ctx, sql, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Release()
+
+	nameIdx, tempIdx := -1, -1
+	for i, f := range reader.Schema().Fields() {
+		switch strings.ToLower(f.Name) {
+		case "tablename":
+			nameIdx = i
+		case "istemporary":
+			tempIdx = i
+		}
+	}
+	if nameIdx < 0 {
+		nameIdx = 0
+	}
+
+	var out []tableEntry
+	for reader.Next() {
+		rec := reader.RecordBatch()
+		col, ok := rec.Column(nameIdx).(*array.String)
+		if !ok {
+			continue
+		}
+		var temp *array.Boolean
+		if tempIdx >= 0 && tempIdx < int(rec.NumCols()) {
+			temp, _ = rec.Column(tempIdx).(*array.Boolean)
+		}
+		for r := 0; r < col.Len(); r++ {
+			if col.IsNull(r) {
+				continue
+			}
+			tt := "TABLE"
+			if temp != nil && !temp.IsNull(r) && temp.Value(r) {
+				tt = "TEMPORARY"
+			}
+			// Clone: array.String.Value aliases a buffer freed on reader.Release.
+			out = append(out, tableEntry{name: strings.Clone(col.Value(r)), tableType: tt})
+		}
+	}
+	if err := reader.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// tableTypeAllowed reports whether tt passes the (possibly empty) type filter.
+func tableTypeAllowed(tt string, filter []string) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	for _, f := range filter {
+		if strings.EqualFold(f, tt) {
+			return true
+		}
+	}
+	return false
 }
 
 // queryStrings runs a SQL statement and collects the values of a named string

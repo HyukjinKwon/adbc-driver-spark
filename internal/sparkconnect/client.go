@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
@@ -295,8 +296,12 @@ func (c *Client) Close() error {
 	c.closed = true
 	c.mu.Unlock()
 
-	// Best-effort release of the remote session.
-	_, _ = c.svc.ReleaseSession(c.outgoingContext(context.Background()), &connect.ReleaseSessionRequest{
+	// Best-effort release of the remote session, with a bounded timeout so that
+	// an unresponsive server can never make Close hang (it is typically called
+	// from defer/shutdown paths).
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _ = c.svc.ReleaseSession(c.outgoingContext(ctx), &connect.ReleaseSessionRequest{
 		SessionId:   c.sessionID,
 		UserContext: c.userContext(),
 		ClientType:  c.clientType(),

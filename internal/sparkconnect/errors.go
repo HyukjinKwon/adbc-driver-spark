@@ -53,7 +53,9 @@ func grpcToADBC(code codes.Code) adbc.Status {
 		return adbc.StatusNotFound
 	case codes.AlreadyExists:
 		return adbc.StatusAlreadyExists
-	case codes.PermissionDenied, codes.Unauthenticated:
+	case codes.Unauthenticated:
+		return adbc.StatusUnauthenticated
+	case codes.PermissionDenied:
 		return adbc.StatusUnauthorized
 	case codes.Unimplemented:
 		return adbc.StatusNotImplemented

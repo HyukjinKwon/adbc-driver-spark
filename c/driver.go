@@ -203,8 +203,7 @@ func initLoggingFromEnv(db adbc.Database) {
 		logLevel = slog.LevelDebug
 	case "info":
 		logLevel = slog.LevelInfo
-	case "warn":
-	case "warning":
+	case "warn", "warning":
 		logLevel = slog.LevelWarn
 	case "error":
 		logLevel = slog.LevelError
@@ -256,7 +255,10 @@ func exportStringOption(val string, out *C.char, length *C.size_t) C.AdbcStatusC
 	if lenWithTerminator <= *length {
 		sink := fromCArr[byte]((*byte)(unsafe.Pointer(out)), int(*length))
 		copy(sink, val)
-		sink[lenWithTerminator] = 0
+		// The NUL terminator goes at index len(val); writing at
+		// lenWithTerminator (len(val)+1) overruns the caller's exactly-sized
+		// buffer and panics on the standard two-call GetOption idiom.
+		sink[len(val)] = 0
 	}
 	*length = lenWithTerminator
 	return C.ADBC_STATUS_OK

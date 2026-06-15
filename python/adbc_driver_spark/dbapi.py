@@ -119,8 +119,7 @@ def connect(
     db_kwargs:
         Extra database options (see :class:`adbc_driver_spark.DatabaseOptions`).
     conn_kwargs:
-        Extra connection options (see
-        :class:`adbc_driver_spark.ConnectionOptions`).
+        Extra connection options passed to the underlying ADBC connection.
     token:
         Convenience shortcut for the bearer token. Equivalent to setting
         :attr:`adbc_driver_spark.DatabaseOptions.TOKEN`. Implies ``use_ssl``.
@@ -153,8 +152,10 @@ def connect(
     try:
         db = adbc_driver_spark.connect(uri, db_kwargs=db_kwargs)
         conn = adbc_driver_manager.AdbcConnection(db, **(conn_kwargs or {}))
+        # Forward conn_kwargs so the wrapper keeps them for adbc_clone(); without
+        # this they are lost and a cloned connection is configured differently.
         return adbc_driver_manager.dbapi.Connection(
-            db, conn, autocommit=autocommit, **kwargs
+            db, conn, conn_kwargs=conn_kwargs, autocommit=autocommit, **kwargs
         )
     except Exception:
         if conn is not None:

@@ -122,7 +122,10 @@ func ParseConnectionString(conn string) (*Config, error) {
 			if !found {
 				return nil, fmt.Errorf("spark connect: malformed parameter %q", kv)
 			}
-			if v, err := url.QueryUnescape(value); err == nil {
+			// PathUnescape (not QueryUnescape) so a literal '+' in a value is
+			// preserved. Bearer tokens, base64 secrets, and JWTs contain '+',
+			// and QueryUnescape would turn it into a space and corrupt them.
+			if v, err := url.PathUnescape(value); err == nil {
 				value = v
 			}
 			if err := cfg.applyParam(strings.ToLower(strings.TrimSpace(key)), value); err != nil {

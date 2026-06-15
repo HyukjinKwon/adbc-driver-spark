@@ -18,6 +18,7 @@ package spark
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/apache/arrow-adbc/go/adbc"
@@ -82,6 +83,16 @@ func (d *database) SetOptions(opts map[string]string) error {
 				}
 			}
 			cfg.UseTLS = b
+		default:
+			// Reject unrecognized driver-specific keys rather than silently
+			// dropping them (a common cause of "my token was ignored"). Other
+			// standard adbc.* keys are accepted but unused.
+			if strings.HasPrefix(key, "adbc.spark.") {
+				return adbc.Error{
+					Msg:  "spark: unknown option " + key,
+					Code: adbc.StatusNotImplemented,
+				}
+			}
 		}
 	}
 

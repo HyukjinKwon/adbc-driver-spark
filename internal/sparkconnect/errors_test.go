@@ -61,7 +61,7 @@ func TestWrapGRPCStatusMapping(t *testing.T) {
 		{"not found", codes.NotFound, adbc.StatusNotFound},
 		{"already exists", codes.AlreadyExists, adbc.StatusAlreadyExists},
 		{"permission denied", codes.PermissionDenied, adbc.StatusUnauthorized},
-		{"unauthenticated", codes.Unauthenticated, adbc.StatusUnauthorized},
+		{"unauthenticated", codes.Unauthenticated, adbc.StatusUnauthenticated},
 		{"unimplemented", codes.Unimplemented, adbc.StatusNotImplemented},
 		{"unavailable", codes.Unavailable, adbc.StatusIO},
 		{"internal", codes.Internal, adbc.StatusInternal},

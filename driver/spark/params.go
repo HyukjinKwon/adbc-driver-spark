@@ -18,6 +18,7 @@ package spark
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/apache/arrow-adbc/go/adbc"
@@ -56,7 +57,14 @@ func columnToLiteral(col arrow.Array, row int) (*connect.Expression_Literal, err
 	case *array.Uint32:
 		lit.LiteralType = &connect.Expression_Literal_Long{Long: int64(arr.Value(row))}
 	case *array.Uint64:
-		lit.LiteralType = &connect.Expression_Literal_Long{Long: int64(arr.Value(row))}
+		v := arr.Value(row)
+		if v > math.MaxInt64 {
+			return nil, adbc.Error{
+				Msg:  fmt.Sprintf("spark: uint64 parameter %d exceeds the maximum bind value (Spark long is signed)", v),
+				Code: adbc.StatusInvalidArgument,
+			}
+		}
+		lit.LiteralType = &connect.Expression_Literal_Long{Long: int64(v)}
 	case *array.Float32:
 		lit.LiteralType = &connect.Expression_Literal_Float{Float: arr.Value(row)}
 	case *array.Float64:
