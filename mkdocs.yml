@@ -89,6 +89,7 @@ nav:
       - Type Mapping: type-mapping.md
       - Configuration Reference: configuration.md
   - Languages:
+      - Using from Python: usage-python.md
       - Using from C and C++: usage-c.md
       - Using from Go: usage-go.md
       - Using from R: usage-r.md
