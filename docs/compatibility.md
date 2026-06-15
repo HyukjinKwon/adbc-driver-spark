@@ -8,12 +8,15 @@ which ADBC features it implements, and how each language consumes it.
 
 | Spark version | Status     | Notes |
 |---------------|------------|-------|
-| 4.1.x         | Supported  | |
+| 4.1.x         | Supported  | Primary target. |
 | 4.0.x         | Supported  | Wire-compatible; Spark Connect protos are pinned to v4.1.0. |
+| 3.5.x         | Supported  | Uses the Scala 2.13 build of Spark 3.5. |
 
-The driver targets the Spark Connect gRPC protocol shipped with Spark 4.0 and
-4.1. Databricks Connect compatible endpoints that speak the same protocol work
-as well; see [Connecting and Authentication](connecting.md).
+Every supported line is exercised on every CI run against a live Spark Connect
+server (Spark 4.1.x, 4.0.x, and 3.5.x). The driver targets the stable Spark
+Connect gRPC surface, so it is wire-compatible across these versions. Databricks
+Connect compatible endpoints that speak the same protocol work as well; see
+[Connecting and Authentication](connecting.md).
 
 ## ADBC feature conformance
 

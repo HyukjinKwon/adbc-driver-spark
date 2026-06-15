@@ -61,7 +61,7 @@ then load it with your language's ADBC driver manager.
 
 ## Quickstart
 
-Start a Spark Connect server (Spark 4.0.x or 4.1.x):
+Start a Spark Connect server (Spark 3.5.x, 4.0.x, or 4.1.x):
 
 ```bash
 # From a Spark 4.x distribution (the Connect server is bundled)
@@ -157,14 +157,15 @@ for the full list.
 - Full Spark to Arrow type mapping, including decimal, timestamp, timestamp_ntz,
   array, map, and struct. See [Type Mapping](https://hyukjinkwon.github.io/adbc-driver-spark/type-mapping/).
 - TLS and bearer-token authentication.
-- Works against Spark Connect on Spark 3.5.x and 4.0.x, and Databricks Connect
-  compatible endpoints.
+- Works against Spark Connect on Spark 3.5.x, 4.0.x, and 4.1.x, and Databricks
+  Connect compatible endpoints. Every line is exercised in CI against a live
+  server.
 
 ## Compatibility
 
 | Component        | Supported                                            |
 |------------------|------------------------------------------------------|
-| Spark Connect    | Spark 3.5.x, 4.0.x (protos pinned to 4.0.0)          |
+| Spark Connect    | Spark 3.5.x, 4.0.x, 4.1.x (protos pinned to v4.1.0)  |
 | ADBC API         | 1.1.0                                                |
 | Python           | 3.9 - 3.13                                            |
 | Go               | 1.25+                                                |

@@ -19,7 +19,10 @@ Initial release of the Apache Arrow ADBC driver for Apache Spark Connect.
 - Metadata introspection for catalogs, schemas, tables, and columns.
 - Prepared statements with positional parameter binding.
 - TLS and bearer-token authentication.
-- Spark Connect protos pinned to v4.1.0, wire-compatible with Spark 4.0.x and 4.1.x.
+- Spark Connect protos pinned to v4.1.0, wire-compatible with Spark 3.5.x, 4.0.x,
+  and 4.1.x, each exercised on every CI run against a live Spark Connect server.
+- Runnable examples in Python, Go, C, and R; the Python, C, and R examples are
+  validated end to end in CI.
 
 [Unreleased]: https://github.com/HyukjinKwon/adbc-driver-spark/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/HyukjinKwon/adbc-driver-spark/releases/tag/v0.1.0
