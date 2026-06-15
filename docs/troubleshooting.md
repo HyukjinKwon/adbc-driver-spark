@@ -13,8 +13,9 @@ failed to connect to sc://localhost:15002: connection refused
 The Spark Connect server is not running, or it is listening somewhere else.
 
 - Confirm the server is up. Spark Connect listens on `sc://localhost:15002` by
-  default. Start it with
-  `./sbin/start-connect-server.sh --packages org.apache.spark:spark-connect_2.13:4.0.0`.
+  default. On Spark 4.x the Connect server is bundled, so start it with
+  `./sbin/start-connect-server.sh` (on Spark 3.5.x add
+  `--packages org.apache.spark:spark-connect_2.13:3.5.8`).
 - Check the host and port in your URI. A managed endpoint usually uses port
   `443`, not `15002`.
 - Verify nothing else is occupying the port and that no firewall blocks it.

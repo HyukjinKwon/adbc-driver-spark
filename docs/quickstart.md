@@ -7,10 +7,11 @@ result set.
 ## Start a Spark Connect server
 
 ```bash
-# From a Spark distribution (Spark 4.0.x or 4.1.x)
-./sbin/start-connect-server.sh \
-  --packages org.apache.spark:spark-connect_2.13:4.0.0
+# From a Spark 4.x distribution (the Connect server is bundled)
+./sbin/start-connect-server.sh
 # Spark Connect listens on sc://localhost:15002 by default
+# On Spark 3.5.x (which does not bundle it) add:
+#   --packages org.apache.spark:spark-connect_2.13:3.5.8
 ```
 
 If you already have an endpoint (for example a managed or Databricks-style

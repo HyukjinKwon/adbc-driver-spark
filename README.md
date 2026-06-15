@@ -64,9 +64,11 @@ then load it with your language's ADBC driver manager.
 Start a Spark Connect server (Spark 4.0.x or 4.1.x):
 
 ```bash
-# From a Spark distribution
-./sbin/start-connect-server.sh --packages org.apache.spark:spark-connect_2.13:4.0.0
+# From a Spark 4.x distribution (the Connect server is bundled)
+./sbin/start-connect-server.sh
 # Spark Connect listens on sc://localhost:15002 by default
+# (On Spark 3.5.x, which does not bundle it, add:
+#  --packages org.apache.spark:spark-connect_2.13:3.5.8)
 ```
 
 ### Python

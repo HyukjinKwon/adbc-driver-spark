@@ -14,8 +14,9 @@ Start a Spark Connect server reachable at `sc://localhost:15002` (the default
 URI). For a local Apache Spark build:
 
 ```bash
-./sbin/start-connect-server.sh \
-    --packages org.apache.spark:spark-connect_2.13:4.0.0
+# Spark 4.x bundles the Connect server:
+./sbin/start-connect-server.sh
+# On Spark 3.5.x add: --packages org.apache.spark:spark-connect_2.13:3.5.8
 ```
 
 ## Examples

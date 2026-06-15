@@ -7,10 +7,9 @@ driver via its DBAPI 2.0 (PEP 249) facade.
 Prerequisites
 -------------
 - A Spark Connect server reachable at sc://localhost:15002 (the default).
-  Start one with, for example:
+  On a Spark 4.x distribution the Connect server is bundled, so just run:
 
-      ./sbin/start-connect-server.sh \
-          --packages org.apache.spark:spark-connect_2.13:4.0.0
+      ./sbin/start-connect-server.sh
 
 - The driver installed:  pip install adbc-driver-spark
 
