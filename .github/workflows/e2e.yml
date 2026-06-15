@@ -64,19 +64,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The archive tarballs do not put the Connect server on
-        # start-connect-server.sh's launch classpath (even for 4.x), so we add
-        # the matching spark-connect_2.13 package on every version. This is the
-        # method documented by Spark for starting a standalone Connect server.
-        # Spark 4.x is Scala 2.13 by default; for 3.5.x we use the Scala 2.13
-        # tarball so the _2.13 package resolves against a 2.13 runtime.
+        # Mirrors the spark-connect-ruby CI. Spark 4.x ships a Scala 2.13 build
+        # whose default tarball bundles the Connect server, so no --packages is
+        # needed. Spark 3.5.x defaults to a Scala 2.12 build that does NOT bundle
+        # Connect, so we use the Scala 2.13 tarball and add the matching package.
         include:
           - spark: "4.1.0"
             dist: spark-4.1.0-bin-hadoop3
-            packages: "--packages org.apache.spark:spark-connect_2.13:4.1.0"
+            packages: ""
           - spark: "4.0.0"
             dist: spark-4.0.0-bin-hadoop3
-            packages: "--packages org.apache.spark:spark-connect_2.13:4.0.0"
+            packages: ""
           - spark: "3.5.0"
             dist: spark-3.5.0-bin-hadoop3-scala2.13
             packages: "--packages org.apache.spark:spark-connect_2.13:3.5.0"
@@ -105,14 +103,24 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/spark
-          key: ${{ matrix.dist }}
+          # The -v2 suffix busts any cache entry that held a truncated
+          # extraction (a piped `curl | tar` can cache a partial jars/).
+          key: ${{ matrix.dist }}-v2
 
       - name: Download Spark ${{ matrix.spark }}
         if: steps.spark-cache.outputs.cache-hit != 'true'
         run: |
+          set -euo pipefail
           mkdir -p ~/spark
-          curl -fsSL "https://archive.apache.org/dist/spark/spark-${{ matrix.spark }}/${{ matrix.dist }}.tgz" \
-            | tar xz -C ~/spark --strip-components=1
+          # Download to a file with retries (not a pipe) so a truncated transfer
+          # fails the step instead of silently extracting a partial archive.
+          curl -fSL --retry 3 --retry-delay 5 -o /tmp/spark.tgz \
+            "https://archive.apache.org/dist/spark/spark-${{ matrix.spark }}/${{ matrix.dist }}.tgz"
+          tar xzf /tmp/spark.tgz -C ~/spark --strip-components=1
+          rm -f /tmp/spark.tgz
+          # Fail loudly if the extraction is incomplete, so a bad tree is never cached.
+          test -x ~/spark/sbin/start-connect-server.sh
+          ls ~/spark/jars/ | grep -q .
 
       - name: Start Spark Connect server
         run: |
