@@ -261,3 +261,22 @@ jobs:
           # Uses the PYPI_TOKEN repository secret (API-token auth). Switch to
           # OIDC trusted publishing only if a PyPI trusted publisher is set up.
           password: ${{ secrets.PYPI_TOKEN }}
+
+  index-go:
+    name: Index on pkg.go.dev
+    needs: [github-release]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warm the Go module proxy
+        # The Go module is "released" by the tag itself. pkg.go.dev only indexes
+        # a version after the module proxy first serves it, so request it here to
+        # make the release show up on pkg.go.dev automatically. Best-effort.
+        run: |
+          module="github.com/HyukjinKwon/adbc-driver-spark"
+          # The proxy escapes uppercase letters as !<lowercase>.
+          escaped=$(printf '%s' "$module" | sed -E 's/([A-Z])/!\L\1/g')
+          version="${GITHUB_REF_NAME}"
+          echo "Requesting https://proxy.golang.org/${escaped}/@v/${version}.info"
+          curl -fsS "https://proxy.golang.org/${escaped}/@v/${version}.info" || true
+          curl -fsS "https://proxy.golang.org/${escaped}/@latest" || true
