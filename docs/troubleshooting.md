@@ -55,12 +55,11 @@ For very large result sets:
 
 - Stream batches instead of materializing everything. Use
   `fetch_record_batch()` in Python or iterate the `RecordReader` in Go rather
-  than `fetch_arrow_table()`. See [Querying Data](querying.md).
-- Tune prefetch with the `adbc.rpc.result_queue_size` statement option to bound
-  how many batches the driver buffers.
-- If a long query drops mid-stream, the driver's reattachable execution resumes
-  it automatically; a persistent failure usually points at a server-side or
-  network timeout.
+  than `fetch_arrow_table()`. The driver delivers one batch at a time, so a
+  streaming consumer keeps memory flat regardless of result size. See
+  [Querying Data](querying.md).
+- Reduce the result size at the source with `LIMIT`, projection, or
+  aggregation so Spark prunes the work server-side before sending Arrow.
 
 ## CGO or shared library not found
 

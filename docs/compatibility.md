@@ -48,11 +48,11 @@ The driver maps ADBC operations onto these Spark Connect service RPCs:
 
 | RPC                  | Used for |
 |----------------------|----------|
-| `ExecutePlan`        | Running SQL and streaming Arrow IPC results. Reattachable execution is used for long-running queries. |
-| `AnalyzePlan`        | Resolving result and table schemas (`GetTableSchema`). |
+| `ExecutePlan`        | Running SQL and streaming Arrow IPC results, decoded and handed to the consumer one batch at a time. |
+| `AnalyzePlan`        | Resolving result and table schemas (`GetTableSchema`) and the Spark version. |
 | `Config`             | Reading and setting session configuration. |
-| `ReattachExecute`    | Resuming a result stream after an interruption. |
-| `ReleaseExecute`     | Releasing server-side execution state when done. |
+| `Interrupt`          | Cancelling running operations on the session. |
+| `ReleaseSession`     | Releasing the server-side session when the connection closes. |
 
 Metadata methods (`GetObjects` and friends) are served through Spark catalog
 relations submitted via `ExecutePlan`. See [Architecture](architecture.md).

@@ -18,11 +18,62 @@
 package e2e
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
 )
+
+// TestLargeResultStreaming drives a result large enough to span many server
+// Arrow batches (Spark caps a batch at spark.sql.execution.arrow.maxRecordsPerBatch,
+// 10000 by default). It streams the result, counting rows incrementally and
+// deliberately NOT retaining each batch, which both exercises the multi-batch
+// streaming path and asserts the contract that a record is valid until the next
+// Next call. The row total must still be exact.
+func TestLargeResultStreaming(t *testing.T) {
+	ctx, conn := openConn(t)
+	stmt, err := conn.NewStatement()
+	if err != nil {
+		t.Fatalf("NewStatement: %v", err)
+	}
+	defer stmt.Close()
+
+	const n = 250000
+	if err := stmt.SetSqlQuery(fmt.Sprintf("SELECT id FROM range(0, %d)", n)); err != nil {
+		t.Fatalf("SetSqlQuery: %v", err)
+	}
+	rdr, _, err := stmt.ExecuteQuery(ctx)
+	if err != nil {
+		t.Fatalf("ExecuteQuery: %v", err)
+	}
+	defer rdr.Release()
+
+	var rows, batches int64
+	var last int64 = -1
+	for rdr.Next() {
+		rec := rdr.RecordBatch()
+		col := rec.Column(0).(*array.Int64)
+		for i := 0; i < col.Len(); i++ {
+			if col.Value(i) != last+1 {
+				t.Fatalf("out-of-order id at batch %d row %d: got %d, want %d", batches, i, col.Value(i), last+1)
+			}
+			last = col.Value(i)
+		}
+		rows += rec.NumRows()
+		batches++
+	}
+	if err := rdr.Err(); err != nil {
+		t.Fatalf("streaming read error: %v", err)
+	}
+	if rows != n {
+		t.Fatalf("streamed rows = %d, want %d", rows, n)
+	}
+	if batches < 2 {
+		t.Fatalf("expected multiple server batches for %d rows, got %d", n, batches)
+	}
+	t.Logf("streamed %d rows across %d batches", rows, batches)
+}
 
 func TestSelectLiteral(t *testing.T) {
 	ctx, conn := openConn(t)

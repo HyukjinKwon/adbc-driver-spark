@@ -48,6 +48,9 @@ type clientResult struct {
 	schema  *arrow.Schema
 	records []arrow.Record
 	grpcErr error
+	// trailingErr, when set, is returned after the records have been streamed
+	// (before ResultComplete), simulating a server failure mid-stream.
+	trailingErr error
 }
 
 // testServer is a Spark Connect service backed by a routing function for
@@ -127,6 +130,10 @@ func (s *testServer) ExecutePlan(req *connect.ExecutePlanRequest, stream connect
 				return err
 			}
 		}
+	}
+
+	if res.trailingErr != nil {
+		return res.trailingErr
 	}
 
 	return stream.Send(&connect.ExecutePlanResponse{

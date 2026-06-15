@@ -27,41 +27,36 @@ Set these when creating the database (Go `NewDatabase`, Python
 
 ## Connection options
 
-Set these on the connection (Python `conn_kwargs`, or after open).
-
-| Option key                            | Meaning |
-|---------------------------------------|---------|
-| `adbc.connection.catalog`             | Set the current catalog (standard ADBC option; runs `USE CATALOG`). |
-| `adbc.connection.db_schema`           | Set the current schema/database (standard ADBC option; runs `USE <db>`). |
-| `adbc.connection.autocommit`          | Autocommit flag. Always effectively `true`. See below. |
+The driver does not implement connection-level option setters; calling
+`SetOption` on a connection returns `ADBC_STATUS_NOT_IMPLEMENTED`. To select a
+catalog or schema, run it as SQL on a statement (`USE CATALOG <c>`, `USE <db>`),
+or pass the catalog and schema arguments to the metadata methods
+(`GetObjects`, `GetTableSchema`).
 
 ### Autocommit and transactions
 
-Spark Connect has no multi-statement transactions, so the driver runs in
-autocommit mode. Setting `adbc.connection.autocommit` to `false`, or calling
-`Commit` / `Rollback`, reports `ADBC_STATUS_NOT_IMPLEMENTED`. The Python DBAPI
-`connect(..., autocommit=False)` is accepted for API symmetry but transactions
-remain unavailable. See [Compatibility](compatibility.md).
+Spark Connect has no multi-statement transactions, so the driver always operates
+in autocommit mode. `Commit` and `Rollback` report
+`ADBC_STATUS_NOT_IMPLEMENTED`. The Python DBAPI `connect(..., autocommit=False)`
+is accepted for API symmetry but transactions remain unavailable. See
+[Compatibility](compatibility.md).
 
 ## Statement options
 
-Set these on a statement before execution.
-
-| Option key                       | Meaning |
-|----------------------------------|---------|
-| `adbc.rpc.result_queue_size`     | Number of result batches to prefetch from the server (standard ADBC option). |
+The driver defines no statement-level options; calling `SetOption` on a
+statement returns `ADBC_STATUS_NOT_IMPLEMENTED`. Results are streamed one batch
+at a time with no tunable prefetch (see [Architecture](architecture.md)).
 
 ## Standard ADBC option keys
 
-The driver honors the standard ADBC keys where they apply:
+The driver honors these standard ADBC database keys (all set at the database
+level), in addition to the `adbc.spark.` keys above:
 
-| Option key                          | Applies to | Meaning |
-|-------------------------------------|------------|---------|
-| `uri`                               | database   | Connection string. |
-| `adbc.connection.catalog`           | connection | Current catalog. |
-| `adbc.connection.db_schema`         | connection | Current schema/database. |
-| `adbc.connection.autocommit`        | connection | Autocommit (read-only here). |
-| `adbc.rpc.result_queue_size`        | statement  | Result prefetch depth. |
+| Option key   | Applies to | Meaning |
+|--------------|------------|---------|
+| `uri`        | database   | Spark Connect connection string. |
+| `username`   | database   | Mapped to the Spark Connect user id. |
+| `password`   | database   | Mapped to the bearer token. |
 
 ## Examples
 
@@ -77,11 +72,12 @@ The driver honors the standard ADBC keys where they apply:
             "adbc.spark.user_id": "analyst",
             "adbc.spark.headers.x-request-source": "etl",
         },
-        conn_kwargs={
-            "adbc.connection.catalog": "spark_catalog",
-            "adbc.connection.db_schema": "default",
-        },
     )
+
+    # Select a catalog or schema with SQL rather than a connection option.
+    with conn.cursor() as cur:
+        cur.execute("USE CATALOG spark_catalog")
+        cur.execute("USE default")
     ```
 
 === "Go"

@@ -78,21 +78,16 @@ sequenceDiagram
     end
 ```
 
-### Reattachable execution
+### Streaming result delivery
 
-Long-running queries use Spark Connect's reattachable execution. The driver
-tracks the operation id and can resume a result stream with `ReattachExecute`
-if the underlying connection is interrupted mid-stream, then issues
-`ReleaseExecute` once the result is fully consumed. This makes large result sets
-resilient to transient network hiccups.
-
-### Result chunking
-
-Results are delivered as a sequence of batches rather than one monolithic
-payload. The driver prefetches a bounded number of batches (tunable with
-`adbc.rpc.result_queue_size`) and hands them to the reader as they arrive, so
-memory stays flat even for very large results. See
-[Querying Data](querying.md).
+Results are delivered as a sequence of Arrow batches rather than one monolithic
+payload. The driver decodes one batch at a time and hands it to the reader on
+demand: only the current batch is held in memory while the next is pulled from
+the gRPC stream as the consumer advances. The schema is read from the first
+batch during execution so it is available before the first row. This keeps
+client memory flat regardless of result size. Abandoning a reader before the
+result is fully consumed cancels the underlying stream so the server can release
+the operation. See [Querying Data](querying.md).
 
 ## Schemas with AnalyzePlan
 

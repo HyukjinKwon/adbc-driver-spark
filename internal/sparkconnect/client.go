@@ -170,11 +170,16 @@ func (c *Client) executePlan(ctx context.Context, plan *connect.Plan) (array.Rec
 		OperationId: &opID,
 	}
 
-	stream, err := c.svc.ExecutePlan(c.outgoingContext(ctx), req)
+	// The stream is consumed lazily by the reader, so it must outlive this call.
+	// A derived cancelable context lets the reader tear the stream down on
+	// Release (including partial reads), freeing the server-side operation.
+	streamCtx, cancel := context.WithCancel(c.outgoingContext(ctx))
+	stream, err := c.svc.ExecutePlan(streamCtx, req)
 	if err != nil {
+		cancel()
 		return nil, wrapGRPC(err)
 	}
-	return newResultReader(c, stream)
+	return newResultReader(c, stream, cancel)
 }
 
 // SchemaOf returns the Arrow schema produced by a SQL statement without

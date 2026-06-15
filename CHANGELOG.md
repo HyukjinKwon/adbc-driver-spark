@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Streaming result delivery: the driver now decodes one Arrow batch at a time
+  and hands it to the consumer on demand, holding only the current batch in
+  memory instead of buffering the entire result. Memory stays flat for
+  arbitrarily large results, and abandoning a reader early cancels the server
+  operation.
 - `adbc.spark.headers.<NAME>` database option to set arbitrary gRPC metadata
   headers, at parity with the connection-string behavior. Exposed in Python as
   `DatabaseOptions.HEADER_PREFIX`.
@@ -41,14 +46,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Documentation corrected to match the driver: the real `adbc.spark.*` option
   keys (previously documented as `adbc.spark.connect.*`), the TLS key
-  `adbc.spark.tls.enabled`, removal of options that were never implemented, and
-  the Spark Connect proto pin documented as v4.1.2.
+  `adbc.spark.tls.enabled`, the Spark Connect proto pin documented as v4.1.2,
+  and removal of options and features that were never implemented (the
+  `adbc.connection.*` and `adbc.rpc.result_queue_size` option keys and the
+  reattachable-execution description).
 - CI actions updated to their Node 24 majors.
 
 ### Known limitations
 
-- Results are fully materialized in client memory before being returned, so very
-  large result sets can exhaust memory. Streaming delivery is planned.
 - No automatic reconnection or retry on transient failures, and no server-side
   statement interrupt (client-side context cancellation only).
 
