@@ -66,6 +66,38 @@ pattern.
     }
     ```
 
+=== "C"
+
+    ```c
+    /* AdbcConnectionGetObjects walks the catalog/schema/table/column hierarchy
+     * and returns the result as an Arrow C stream. Pass NULL for filters you
+     * do not want to apply. */
+    struct ArrowArrayStream stream = {0};
+    AdbcConnectionGetObjects(&connection, ADBC_OBJECT_DEPTH_ALL,
+                             NULL,        /* catalog */
+                             "default",   /* db_schema */
+                             NULL,        /* table_name */
+                             NULL,        /* table_types */
+                             NULL,        /* column_name */
+                             &stream, &error);
+    /* Read `stream` with nanoarrow. */
+    ```
+
+    !!! note
+        The full setup/teardown (creating the database and connection, error
+        checking, releases) and the compile command live in
+        [Using from C and C++](usage-c.md).
+
+=== "R"
+
+    ```r
+    # adbc_connection_get_objects() returns the hierarchy as an Arrow stream.
+    objects <- con |>
+        adbc_connection_get_objects(depth = "all", db_schema = "default") |>
+        as.data.frame()
+    print(objects)
+    ```
+
 Equivalently, you can use SQL discovery statements such as `SHOW CATALOGS`,
 `SHOW DATABASES`, and `SHOW TABLES`, which return ordinary Arrow result sets.
 
@@ -103,6 +135,30 @@ with conn.cursor() as cur:
     fmt.Println(schema)          // *arrow.Schema
     ```
 
+=== "C"
+
+    ```c
+    /* Fetch the Arrow schema of a single table. */
+    struct ArrowSchema schema = {0};
+    AdbcConnectionGetTableSchema(&connection,
+                                 "spark_catalog", /* catalog */
+                                 "default",       /* db_schema */
+                                 "events",        /* table_name */
+                                 &schema, &error);
+    /* Inspect `schema` (e.g. schema.n_children columns), then release it. */
+    ```
+
+=== "R"
+
+    ```r
+    schema <- adbc_connection_get_table_schema(
+        con,
+        catalog = "spark_catalog",
+        db_schema = "default",
+        table_name = "events")
+    print(schema)
+    ```
+
 ## Table types
 
 === "Python"
@@ -123,6 +179,24 @@ with conn.cursor() as cur:
     for reader.Next() {
         fmt.Println(reader.Record())
     }
+    ```
+
+=== "C"
+
+    ```c
+    /* The reported table types arrive as an Arrow C stream. */
+    struct ArrowArrayStream stream = {0};
+    AdbcConnectionGetTableTypes(&connection, &stream, &error);
+    /* Read `stream` with nanoarrow, e.g. "TABLE", "VIEW". */
+    ```
+
+=== "R"
+
+    ```r
+    table_types <- con |>
+        adbc_connection_get_table_types() |>
+        as.data.frame()
+    print(table_types)   # e.g. TABLE, VIEW
     ```
 
 ## Driver and server info
@@ -148,6 +222,25 @@ the Spark vendor name and version.
     for reader.Next() {
         fmt.Println(reader.Record())
     }
+    ```
+
+=== "C"
+
+    ```c
+    /* Pass NULL info codes (and 0 length) to request all of them. The result
+     * is an Arrow C stream of info code/value pairs. */
+    struct ArrowArrayStream stream = {0};
+    AdbcConnectionGetInfo(&connection, NULL, 0, &stream, &error);
+    /* Read `stream` with nanoarrow. */
+    ```
+
+=== "R"
+
+    ```r
+    info <- con |>
+        adbc_connection_get_info() |>
+        as.data.frame()
+    print(info)
     ```
 
 !!! note

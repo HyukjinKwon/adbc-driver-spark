@@ -37,6 +37,33 @@ Arrow `RecordReader` and a row count (`-1` when unknown).
     _ = rowsAffected // -1 for a SELECT
     ```
 
+=== "C"
+
+    ```c
+    /* statement, connection, and database are already set up (see the note). */
+    AdbcStatementSetSqlQuery(&statement,
+                             "SELECT id, id * id AS square FROM range(10)", &error);
+
+    struct ArrowArrayStream stream = {0};
+    int64_t rows_affected = -1;  /* -1 for a SELECT */
+    AdbcStatementExecuteQuery(&statement, &stream, &rows_affected, &error);
+    /* `stream` is an Arrow C stream; read it with nanoarrow. */
+    ```
+
+    !!! note
+        The full setup/teardown (creating the database and connection, error
+        checking, releases) and the compile command live in
+        [Using from C and C++](usage-c.md).
+
+=== "R"
+
+    ```r
+    # con is an open connection (see Using from R for setup).
+    table <- read_adbc(con, "SELECT id, id * id AS square FROM range(10)") |>
+        as.data.frame()
+    print(nrow(table))
+    ```
+
 ## Streaming Arrow results
 
 Results arrive as a stream of Arrow record batches. Iterate the reader to
@@ -69,6 +96,42 @@ process arbitrarily large results without holding the whole result in memory.
     if err := reader.Err(); err != nil {
         panic(err)
     }
+    ```
+
+=== "C"
+
+    ```c
+    AdbcStatementSetSqlQuery(&statement, "SELECT * FROM range(1000000)", &error);
+
+    struct ArrowArrayStream stream = {0};
+    int64_t rows_affected = -1;
+    AdbcStatementExecuteQuery(&statement, &stream, &rows_affected, &error);
+
+    /* Pull batches one at a time; a NULL/released array marks end of stream. */
+    int64_t total = 0;
+    for (;;) {
+        struct ArrowArray array = {0};
+        stream.get_next(&stream, &array);
+        if (array.release == NULL) {
+            break;
+        }
+        total += array.length;
+        array.release(&array);
+    }
+    printf("%lld\n", (long long)total);
+    ```
+
+=== "R"
+
+    ```r
+    # read_adbc() yields a streaming Arrow result; iterate batches without
+    # materializing the whole result.
+    stream <- read_adbc(con, "SELECT * FROM range(1000000)")
+    total <- 0
+    while (!is.null(batch <- stream$get_next())) {
+        total <- total + batch$length
+    }
+    print(total)
     ```
 
 !!! tip
@@ -114,6 +177,34 @@ when the server does not report a count.
         panic(err)
     }
     fmt.Println(affected) // affected rows, or -1
+    ```
+
+=== "C"
+
+    ```c
+    /* For statements that do not return rows, pass NULL for the out stream so
+     * the driver runs the update path. rows_affected is the count, or -1. */
+    AdbcStatementSetSqlQuery(
+        &statement,
+        "CREATE TABLE IF NOT EXISTS events (id BIGINT, kind STRING) USING parquet",
+        &error);
+    int64_t rows_affected = -1;
+    AdbcStatementExecuteQuery(&statement, NULL, &rows_affected, &error);
+
+    AdbcStatementSetSqlQuery(&statement,
+                             "INSERT INTO events VALUES (1, 'click'), (2, 'view')",
+                             &error);
+    AdbcStatementExecuteQuery(&statement, NULL, &rows_affected, &error);
+    printf("%lld\n", (long long)rows_affected);  /* affected rows, or -1 */
+    ```
+
+=== "R"
+
+    ```r
+    # execute_adbc() runs statements that do not return rows.
+    con |> execute_adbc(
+        "CREATE TABLE IF NOT EXISTS events (id BIGINT, kind STRING) USING parquet")
+    con |> execute_adbc("INSERT INTO events VALUES (1, 'click'), (2, 'view')")
     ```
 
 ## Prepared statements and parameter binding
@@ -170,6 +261,36 @@ The Python paramstyle is `qmark`: use `?` placeholders.
         panic(err)
     }
     defer reader.Release()
+    ```
+
+=== "C"
+
+    ```c
+    /* Prepare, then bind a one-row Arrow array of parameter values (built with
+     * nanoarrow) before executing. Column "0" is id (int64), "1" is kind. */
+    AdbcStatementSetSqlQuery(
+        &statement, "SELECT * FROM events WHERE id > ? AND kind = ?", &error);
+    AdbcStatementPrepare(&statement, &error);
+
+    struct ArrowArray params = {0};   /* build a 1-row array: 1, "click" */
+    struct ArrowSchema params_schema = {0};
+    /* ... populate params/params_schema with nanoarrow ... */
+    AdbcStatementBind(&statement, &params, &params_schema, &error);
+
+    struct ArrowArrayStream stream = {0};
+    int64_t rows_affected = -1;
+    AdbcStatementExecuteQuery(&statement, &stream, &rows_affected, &error);
+    ```
+
+=== "R"
+
+    ```r
+    # Bind values as a one-row data frame; columns map to ? placeholders in order.
+    stream <- read_adbc(
+        con,
+        "SELECT * FROM events WHERE id > ? AND kind = ?",
+        bind = data.frame(id = 1L, kind = "click"))
+    print(as.data.frame(stream))
     ```
 
 ### Named parameters

@@ -88,6 +88,58 @@ Authentication](connecting.md).
     }
     ```
 
+=== "C"
+
+    ```c
+    #include <adbc.h>
+
+    /* Configure the database: point the driver manager at the shared library
+     * and set the Spark Connect URI, then init and open a connection. */
+    struct AdbcError error = {0};
+    struct AdbcDatabase database = {0};
+    AdbcDatabaseNew(&database, &error);
+    AdbcDatabaseSetOption(&database, "driver",
+                          "/path/to/libadbc_driver_spark.so", &error);
+    AdbcDatabaseSetOption(&database, "uri", "sc://localhost:15002", &error);
+    AdbcDatabaseInit(&database, &error);
+
+    struct AdbcConnection connection = {0};
+    AdbcConnectionNew(&connection, &error);
+    AdbcConnectionInit(&connection, &database, &error);
+
+    /* Run a query and read the Arrow result stream. */
+    struct AdbcStatement statement = {0};
+    AdbcStatementNew(&connection, &statement, &error);
+    AdbcStatementSetSqlQuery(&statement,
+                             "SELECT id, id * id AS square FROM range(5)", &error);
+
+    struct ArrowArrayStream stream = {0};
+    int64_t rows_affected = -1;
+    AdbcStatementExecuteQuery(&statement, &stream, &rows_affected, &error);
+    /* Consume `stream` with nanoarrow or the Arrow C data interface. */
+    ```
+
+    !!! note
+        The full setup/teardown (error checking, releases) and the compile
+        command live in [Using from C and C++](usage-c.md).
+
+=== "R"
+
+    ```r
+    library(adbcdrivermanager)
+
+    # Wrap the shared library, init the database with the Spark Connect URI,
+    # and open a connection.
+    drv <- adbc_driver(Sys.getenv("SPARK_DRIVER"))
+    db <- adbc_database_init(drv, uri = "sc://localhost:15002")
+    con <- adbc_connection_init(db)
+
+    # read_adbc() runs the query and returns a streaming Arrow result.
+    df <- read_adbc(con, "SELECT id, id * id AS square FROM range(5)") |>
+        as.data.frame()
+    print(df)
+    ```
+
 !!! tip
     `fetch_arrow_table()` returns a `pyarrow.Table` with zero copy from the
     Arrow batches Spark streamed back. Use `fetch_df()` for a pandas DataFrame.

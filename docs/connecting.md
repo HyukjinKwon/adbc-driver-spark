@@ -52,6 +52,32 @@ For a local, plaintext Spark Connect server, the URI is all you need.
     })
     ```
 
+=== "C"
+
+    ```c
+    /* The uri option is all you need for a local, plaintext server. */
+    AdbcDatabaseNew(&database, &error);
+    AdbcDatabaseSetOption(&database, "driver",
+                          "/path/to/libadbc_driver_spark.so", &error);
+    AdbcDatabaseSetOption(&database, "uri", "sc://localhost:15002", &error);
+    AdbcDatabaseInit(&database, &error);
+    ```
+
+    !!! note
+        The full setup/teardown (error checking, opening a connection,
+        releases) and the compile command live in
+        [Using from C and C++](usage-c.md).
+
+=== "R"
+
+    ```r
+    library(adbcdrivermanager)
+
+    drv <- adbc_driver(Sys.getenv("SPARK_DRIVER"))
+    db <- adbc_database_init(drv, uri = "sc://localhost:15002")
+    con <- adbc_connection_init(db)
+    ```
+
 ## TLS and bearer tokens
 
 To reach a TLS endpoint that requires a bearer token, set the token and enable
@@ -81,6 +107,27 @@ bearer token over plaintext would leak the credential.
         "adbc.spark.connect.token":     "eyJhbGci...",
         "adbc.spark.connect.use_ssl":   "true",
     })
+    ```
+
+=== "C"
+
+    ```c
+    /* Auth settings are plain database options. Setting a token enables TLS. */
+    AdbcDatabaseSetOption(&database, "uri", "sc://spark.example.com:443", &error);
+    AdbcDatabaseSetOption(&database, "adbc.spark.connect.token", "eyJhbGci...",
+                          &error);
+    AdbcDatabaseSetOption(&database, "adbc.spark.connect.use_ssl", "true", &error);
+    ```
+
+=== "R"
+
+    ```r
+    # Pass Spark options as named arguments to adbc_database_init().
+    db <- adbc_database_init(
+        drv,
+        uri = "sc://spark.example.com:443",
+        adbc.spark.connect.token = "eyJhbGci...",
+        adbc.spark.connect.use_ssl = "true")
     ```
 
 !!! warning
@@ -116,6 +163,28 @@ the URI where the server supports them.
         "adbc.spark.connect.token":                  "eyJhbGci...",
         "adbc.spark.connect.headers.x-request-source": "analytics-team",
     })
+    ```
+
+=== "C"
+
+    ```c
+    /* Attach a gRPC metadata header with the headers.<NAME> option prefix. */
+    AdbcDatabaseSetOption(&database, "uri", "sc://spark.example.com:443", &error);
+    AdbcDatabaseSetOption(&database, "adbc.spark.connect.token", "eyJhbGci...",
+                          &error);
+    AdbcDatabaseSetOption(&database,
+                          "adbc.spark.connect.headers.x-request-source",
+                          "analytics-team", &error);
+    ```
+
+=== "R"
+
+    ```r
+    db <- adbc_database_init(
+        drv,
+        uri = "sc://spark.example.com:443",
+        adbc.spark.connect.token = "eyJhbGci...",
+        `adbc.spark.connect.headers.x-request-source` = "analytics-team")
     ```
 
 ## Databricks-style bearer token
@@ -154,6 +223,32 @@ token-and-TLS endpoint.
         "adbc.spark.connect.use_ssl":                   "true",
         "adbc.spark.connect.headers.x-databricks-cluster-id": os.Getenv("DATABRICKS_CLUSTER_ID"),
     })
+    ```
+
+=== "C"
+
+    ```c
+    /* Token over TLS plus the cluster id header, read from the environment. */
+    AdbcDatabaseSetOption(&database, "uri",
+                          "sc://dbc-12345678-90ab.cloud.databricks.com:443", &error);
+    AdbcDatabaseSetOption(&database, "adbc.spark.connect.token",
+                          getenv("DATABRICKS_TOKEN"), &error);
+    AdbcDatabaseSetOption(&database, "adbc.spark.connect.use_ssl", "true", &error);
+    AdbcDatabaseSetOption(&database,
+                          "adbc.spark.connect.headers.x-databricks-cluster-id",
+                          getenv("DATABRICKS_CLUSTER_ID"), &error);
+    ```
+
+=== "R"
+
+    ```r
+    db <- adbc_database_init(
+        drv,
+        uri = "sc://dbc-12345678-90ab.cloud.databricks.com:443",
+        adbc.spark.connect.token = Sys.getenv("DATABRICKS_TOKEN"),
+        adbc.spark.connect.use_ssl = "true",
+        `adbc.spark.connect.headers.x-databricks-cluster-id` =
+            Sys.getenv("DATABRICKS_CLUSTER_ID"))
     ```
 
 ## Session reuse
