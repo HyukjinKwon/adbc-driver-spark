@@ -21,4 +21,4 @@ The Go build reads this same value via ldflags, and the git release tag
 ``vX.Y.Z`` must match it. See API_CONTRACT for the versioning policy.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

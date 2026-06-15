@@ -61,7 +61,7 @@ const (
 
 // Version is the semantic version of the driver. It is overridden at build
 // time for release artifacts via -ldflags.
-var Version = "0.1.0"
+var Version = "0.2.0"
 
 // Driver-specific option keys. The standard adbc.OptionKey* keys are accepted
 // where they are meaningful (for example adbc.OptionKeyURI, OptionKeyUsername,
