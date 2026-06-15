@@ -53,8 +53,11 @@ concurrency:
 env:
   GO_VERSION: "1.25.x"
   PYTHON_VERSION: "3.11"
-  SPARK_CONNECT_URI: sc://localhost:15002
-  SPARK_REMOTE: sc://localhost:15002
+  # NOTE: SPARK_CONNECT_URI / SPARK_REMOTE are intentionally NOT set here. If
+  # SPARK_REMOTE is present in the environment, start-connect-server.sh launches
+  # spark-submit in Connect *client* mode and cannot find the server class
+  # ("Failed to load class ... SparkConnectServer"). These vars are set only on
+  # the test steps that talk to the already-running server.
 
 jobs:
   e2e:
@@ -68,16 +71,17 @@ jobs:
         # whose default tarball bundles the Connect server, so no --packages is
         # needed. Spark 3.5.x defaults to a Scala 2.12 build that does NOT bundle
         # Connect, so we use the Scala 2.13 tarball and add the matching package.
+        # Latest patch of each supported line.
         include:
-          - spark: "4.1.0"
-            dist: spark-4.1.0-bin-hadoop3
+          - spark: "4.1.2"
+            dist: spark-4.1.2-bin-hadoop3
             packages: ""
-          - spark: "4.0.0"
-            dist: spark-4.0.0-bin-hadoop3
+          - spark: "4.0.3"
+            dist: spark-4.0.3-bin-hadoop3
             packages: ""
-          - spark: "3.5.0"
-            dist: spark-3.5.0-bin-hadoop3-scala2.13
-            packages: "--packages org.apache.spark:spark-connect_2.13:3.5.0"
+          - spark: "3.5.8"
+            dist: spark-3.5.8-bin-hadoop3-scala2.13
+            packages: "--packages org.apache.spark:spark-connect_2.13:3.5.8"
     env:
       SPARK_VERSION: ${{ matrix.spark }}
     steps:
@@ -137,6 +141,8 @@ jobs:
           done
 
       - name: Go e2e suite
+        env:
+          SPARK_CONNECT_URI: sc://localhost:15002
         run: go test -tags e2e -v -timeout 20m ./tests/e2e/...
 
       - name: Build shared library and install Python package
@@ -150,10 +156,12 @@ jobs:
           pip install ./python
 
       - name: Python e2e suite
+        env:
+          SPARK_CONNECT_URI: sc://localhost:15002
         run: |
           pytest -v tests/e2e/
-          # Package-level DBAPI integration tests (honor SPARK_CONNECT_URI, set
-          # above; self-skip when unset). Requested by M3 for extra coverage.
+          # Package-level DBAPI integration tests (honor SPARK_CONNECT_URI;
+          # self-skip when unset). Requested by M3 for extra coverage.
           pytest -v python/tests/test_integration.py
 
       - name: Validate Python ecosystem examples
@@ -161,6 +169,8 @@ jobs:
         # live Spark Connect server so the documented pandas, polars, DuckDB, and
         # pyarrow integrations cannot silently rot. The auth/TLS example needs
         # real credentials, so it is skipped here.
+        env:
+          SPARK_CONNECT_URI: sc://localhost:15002
         run: |
           pip install polars duckdb "pandas>=2.0"
           rc=0
