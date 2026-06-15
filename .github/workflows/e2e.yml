@@ -64,23 +64,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # This matrix mirrors the spark-connect-ruby CI.
-        #
-        # Spark 4.0.0+ ships only a Scala 2.13 build and bundles the Connect
-        # server, so the default tarball works and no --packages is needed. We
-        # pin to .0 releases because patch tarballs after 4.1.0 split Connect
-        # into a separate `-connect` distribution.
-        #
-        # Spark 3.5.x defaults to a Scala 2.12 build and does NOT bundle the
-        # Connect server, so we use the Scala 2.13 distribution AND add the
-        # matching _2.13 package.
+        # The archive tarballs do not put the Connect server on
+        # start-connect-server.sh's launch classpath (even for 4.x), so we add
+        # the matching spark-connect_2.13 package on every version. This is the
+        # method documented by Spark for starting a standalone Connect server.
+        # Spark 4.x is Scala 2.13 by default; for 3.5.x we use the Scala 2.13
+        # tarball so the _2.13 package resolves against a 2.13 runtime.
         include:
           - spark: "4.1.0"
             dist: spark-4.1.0-bin-hadoop3
-            packages: ""
+            packages: "--packages org.apache.spark:spark-connect_2.13:4.1.0"
           - spark: "4.0.0"
             dist: spark-4.0.0-bin-hadoop3
-            packages: ""
+            packages: "--packages org.apache.spark:spark-connect_2.13:4.0.0"
           - spark: "3.5.0"
             dist: spark-3.5.0-bin-hadoop3-scala2.13
             packages: "--packages org.apache.spark:spark-connect_2.13:3.5.0"
