@@ -14,8 +14,23 @@ linters:
     staticcheck:
       checks:
         - all
+        # SA1019: arrow-go is mid-rename (Record -> RecordBatch) and the ADBC
+        #   array.RecordReader interface we implement still exposes the older
+        #   names, so these deprecation warnings are unavoidable for now.
+        - -SA1019
+        # ST1003/ST1020: identifier and comment shapes for methods such as
+        #   SetSqlQuery are fixed by the upstream ADBC Go interface
+        #   (github.com/apache/arrow-adbc/go/adbc); we cannot rename them.
+        - -ST1003
+        - -ST1020
   exclusions:
     generated: lax
+    rules:
+      # Ignoring Close() return values in tests and runnable examples is
+      # idiomatic and keeps the examples readable.
+      - linters:
+          - errcheck
+        path: (_test\.go|^examples/)
     # Generated Spark Connect protobuf/gRPC stubs are not ours to lint.
     paths:
       - internal/sparkconnect/proto

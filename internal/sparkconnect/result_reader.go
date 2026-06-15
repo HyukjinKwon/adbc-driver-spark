@@ -153,13 +153,3 @@ func (r *resultReader) Record() arrow.RecordBatch { return r.cur }
 
 // Err returns any error encountered while iterating.
 func (r *resultReader) Err() error { return r.err }
-
-// emptyReader returns a valid, empty RecordReader for the given schema. It is
-// used for statements that affect rows but produce no result set.
-func emptyReader(schema *arrow.Schema) array.RecordReader {
-	if schema == nil {
-		schema = arrow.NewSchema(nil, nil)
-	}
-	rr, _ := array.NewRecordReader(schema, nil)
-	return rr
-}

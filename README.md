@@ -188,10 +188,3 @@ Full guides live at <https://hyukjinkwon.github.io/adbc-driver-spark/>:
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set
 up a development environment, run the tests, and submit changes. By participating
 you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
-
-## License
-
-Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE)
-for attributions. This project is not affiliated with, endorsed by, or sponsored
-by the Apache Software Foundation. Apache, Apache Arrow, Apache Spark, Arrow, and
-Spark are trademarks of the Apache Software Foundation.

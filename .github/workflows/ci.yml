@@ -32,6 +32,13 @@ env:
   GO_VERSION: "1.25.x"
   PYTHON_VERSION: "3.11"
 
+# Use bash on every OS. The default Windows shell (PowerShell) parses the
+# multi-argument `go test ... ./...` invocation differently and mis-reads the
+# coverage flag, so a consistent shell keeps the matrix uniform.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   go:
     name: Go build & test (${{ matrix.os }})
@@ -140,9 +147,11 @@ jobs:
         with:
           github_token: ${{ github.token }}
       - name: Install protoc-gen-go plugins
+        # Pinned so the codegen-drift check is reproducible. Bump these together
+        # with a regeneration commit (buf generate proto) when upgrading.
         run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: buf lint
         run: buf lint proto

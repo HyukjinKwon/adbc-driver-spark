@@ -1,26 +1,97 @@
-/* Small refinements on top of the Material deep-orange theme. */
+/* Arrow-aligned theme for the ADBC Spark Connect docs.
+   A deep Arrow blue with a brighter interactive accent, tuned for both the
+   light and the slate (dark) schemes. */
 
-.md-typeset h1,
+:root {
+  --md-primary-fg-color:        #14315e;
+  --md-primary-fg-color--light: #1f4a86;
+  --md-primary-fg-color--dark:  #0d2342;
+  --md-primary-bg-color:        #ffffff;
+  --md-primary-bg-color--light: #ffffffcc;
+  --md-accent-fg-color:         #2f6fed;
+  --md-accent-fg-color--transparent: rgba(47, 111, 237, 0.1);
+}
+
+/* Light scheme: links track the accent for a cohesive feel. */
+[data-md-color-scheme="default"] {
+  --md-typeset-a-color: #1f5fd0;
+}
+
+/* Dark scheme: lift the blues so they read on the slate background. */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        #16233a;
+  --md-primary-fg-color--light: #2e5a8f;
+  --md-primary-fg-color--dark:  #0d1626;
+  --md-accent-fg-color:         #6ea8ff;
+  --md-accent-fg-color--transparent: rgba(110, 168, 255, 0.12);
+  --md-typeset-a-color:         #6ea8ff;
+  --md-default-bg-color:        #0f1622;
+  --md-code-bg-color:           #16202e;
+}
+
+/* Typography: tighter, more confident headings. */
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
 .md-typeset h2 {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin-top: 2.2rem;
+}
+.md-typeset h3 {
   font-weight: 600;
 }
 
-/* Slightly tighter tables for the many reference grids in these docs. */
+/* Header: a subtle gradient gives the navbar some depth. */
+.md-header {
+  background: linear-gradient(
+    90deg,
+    var(--md-primary-fg-color),
+    var(--md-primary-fg-color--light)
+  );
+  box-shadow: 0 0 0.2rem rgba(0, 0, 0, 0.1), 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+}
+.md-tabs {
+  background: transparent;
+}
+
+/* Admonitions and details: softer corners. */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 0.4rem;
+  border-left-width: 0.2rem;
+}
+
+/* Code: rounded with a comfortable inline highlight. */
+.md-typeset code {
+  border-radius: 0.25rem;
+}
+.md-typeset pre > code,
+.md-typeset .highlight {
+  border-radius: 0.4rem;
+}
+
+/* Reference tables: tighter and cleaner for the many grids in these docs. */
 .md-typeset table:not([class]) {
   font-size: 0.78rem;
+  border-radius: 0.35rem;
+  overflow: hidden;
 }
-
 .md-typeset table:not([class]) th {
   font-weight: 600;
+  background: var(--md-accent-fg-color--transparent);
 }
 
-/* Make inline code stand out a touch more against the light scheme. */
-.md-typeset code {
-  border-radius: 0.2rem;
+/* Primary buttons (used on the home page) get the accent treatment. */
+.md-typeset .md-button--primary {
+  background-color: var(--md-accent-fg-color);
+  border-color: var(--md-accent-fg-color);
+  color: #fff;
 }
 
 /* Home page hero spacing. */
 .md-typeset .adbc-tagline {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   color: var(--md-default-fg-color--light);
 }

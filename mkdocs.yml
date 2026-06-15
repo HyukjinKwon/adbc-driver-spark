@@ -7,20 +7,54 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  icon:
+    logo: material/database-arrow-right
+    repo: fontawesome/brands/github
   features:
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
-    - navigation.expand
     - navigation.top
     - navigation.instant
+    - navigation.instant.progress
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
     - content.code.copy
     - content.code.annotate
+    - content.tabs.link
     - search.highlight
-  # Single fixed (light) palette. The dark/light toggle button is intentionally
-  # removed per maintainer preference. Do NOT re-add a `toggle:` here.
+    - search.suggest
+    - search.share
+  font:
+    text: Inter
+    code: JetBrains Mono
+  # Arrow-aligned blue palette with a light/dark toggle. The exact brand colors
+  # are defined as CSS custom properties in stylesheets/extra.css.
   palette:
-    scheme: default
-    primary: deep orange
-    accent: deep orange
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/HyukjinKwon/adbc-driver-spark
+      name: Source on GitHub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/adbc-driver-spark/
+      name: adbc-driver-spark on PyPI
 
 extra_css:
   - stylesheets/extra.css
