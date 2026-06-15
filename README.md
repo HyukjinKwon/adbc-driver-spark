@@ -52,12 +52,25 @@ This pulls in the prebuilt shared library for your platform, plus
 go get github.com/HyukjinKwon/adbc-driver-spark
 ```
 
-### C / C++ / R and other languages
+### C, C++, R, Rust, Ruby, and other languages
 
-Download the shared library (`libadbc_driver_spark.{so,dylib,dll}`) from the
-[Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) page, or
-build it from source (see [Installation](https://hyukjinkwon.github.io/adbc-driver-spark/installation/)),
-then load it with your language's ADBC driver manager.
+These ecosystems all load the same C-ABI shared library through their existing
+ADBC driver manager, so there is no separate package to install for each. Get
+the shared library (`libadbc_driver_spark.{so,dylib,dll}`) from the
+[Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) page (or
+build it from source, see
+[Installation](https://hyukjinkwon.github.io/adbc-driver-spark/installation/)),
+then load it with the driver manager for your language:
+
+| Language | Driver manager | Guide |
+|----------|----------------|-------|
+| C / C++  | `libadbc_driver_manager` | [Using from C and C++](https://hyukjinkwon.github.io/adbc-driver-spark/usage-c/) |
+| R        | `adbcdrivermanager` (CRAN) | [Using from R](https://hyukjinkwon.github.io/adbc-driver-spark/usage-r/) |
+| Rust     | `adbc_driver_manager` (crates.io) | [Using from Rust](https://hyukjinkwon.github.io/adbc-driver-spark/usage-rust/) |
+| Ruby     | `red-adbc` (RubyGems) | [Using from Ruby](https://hyukjinkwon.github.io/adbc-driver-spark/usage-ruby/) |
+
+Point the driver manager's `driver` option at the shared library; it resolves
+the standard `AdbcDriverInit` entrypoint automatically.
 
 ## Quickstart
 
@@ -92,7 +105,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/apache/arrow-adbc/go/adbc"
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	spark "github.com/HyukjinKwon/adbc-driver-spark/driver/spark"
 )
@@ -178,15 +190,38 @@ for the ADBC conformance matrix and known limitations.
 
 ## Documentation
 
-Full guides live at <https://hyukjinkwon.github.io/adbc-driver-spark/>:
+Full guides live at <https://hyukjinkwon.github.io/adbc-driver-spark/>.
+
+**Get started**
 
 - [Installation](https://hyukjinkwon.github.io/adbc-driver-spark/installation/)
 - [Quickstart](https://hyukjinkwon.github.io/adbc-driver-spark/quickstart/)
 - [Connecting and Authentication](https://hyukjinkwon.github.io/adbc-driver-spark/connecting/)
+
+**Guides**
+
 - [Querying Data](https://hyukjinkwon.github.io/adbc-driver-spark/querying/)
 - [Python DBAPI](https://hyukjinkwon.github.io/adbc-driver-spark/python-dbapi/)
+- [Ecosystem Integrations](https://hyukjinkwon.github.io/adbc-driver-spark/integrations/) (pandas, Polars, DuckDB, PyArrow)
+- [Metadata and Catalogs](https://hyukjinkwon.github.io/adbc-driver-spark/metadata/)
 - [Type Mapping](https://hyukjinkwon.github.io/adbc-driver-spark/type-mapping/)
+- [Configuration Reference](https://hyukjinkwon.github.io/adbc-driver-spark/configuration/)
+
+**Using from each language**
+
+- [Python](https://hyukjinkwon.github.io/adbc-driver-spark/usage-python/)
+- [Go](https://hyukjinkwon.github.io/adbc-driver-spark/usage-go/)
+- [C and C++](https://hyukjinkwon.github.io/adbc-driver-spark/usage-c/)
+- [Rust](https://hyukjinkwon.github.io/adbc-driver-spark/usage-rust/)
+- [R](https://hyukjinkwon.github.io/adbc-driver-spark/usage-r/)
+- [Ruby](https://hyukjinkwon.github.io/adbc-driver-spark/usage-ruby/)
+
+**Reference**
+
+- [Examples](https://hyukjinkwon.github.io/adbc-driver-spark/examples/)
+- [Compatibility and Conformance](https://hyukjinkwon.github.io/adbc-driver-spark/compatibility/)
 - [Architecture](https://hyukjinkwon.github.io/adbc-driver-spark/architecture/)
+- [Troubleshooting](https://hyukjinkwon.github.io/adbc-driver-spark/troubleshooting/)
 
 ## Contributing
 
