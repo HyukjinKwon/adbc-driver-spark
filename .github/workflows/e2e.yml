@@ -65,12 +65,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Current target line (latest 4.1.x patch).
-          - spark: "4.1.2"
-            dist: spark-4.1.2-bin-hadoop3
-          # Previous line, kept green for backward compatibility (latest 4.0.x).
-          - spark: "4.0.3"
-            dist: spark-4.0.3-bin-hadoop3
+          # Spark 4.x ships a Scala 2.13 build whose default tarball bundles the
+          # Connect server, so no --packages is needed. We pin to the .0 releases
+          # because patch tarballs after 4.1.0 split Connect into a separate
+          # `-connect` distribution; this mirrors the spark-connect-ruby CI.
+          - spark: "4.1.0"
+            dist: spark-4.1.0-bin-hadoop3
+            packages: ""
+          - spark: "4.0.0"
+            dist: spark-4.0.0-bin-hadoop3
+            packages: ""
     env:
       SPARK_VERSION: ${{ matrix.spark }}
     steps:
@@ -107,10 +111,13 @@ jobs:
 
       - name: Start Spark Connect server
         run: |
-          # Spark 4.0.0+ bundles the Connect server in the Scala 2.13 build, so
-          # no --packages are required. start-connect-server.sh daemonizes, so we
-          # must NOT set SPARK_NO_DAEMONIZE here.
-          ~/spark/sbin/start-connect-server.sh --conf spark.log.level=WARN
+          # Do NOT set SPARK_NO_DAEMONIZE: spark-daemon.sh treats any non-empty
+          # value as "run in the foreground", which would hang this step. Leaving
+          # it unset lets the server daemonize so the wait loop below can run.
+          # matrix.packages is empty for the bundled 4.x tarballs.
+          ~/spark/sbin/start-connect-server.sh \
+            ${{ matrix.packages }} \
+            --conf spark.log.level=WARN
           for i in $(seq 1 60); do
             if bash -c "exec 3<>/dev/tcp/localhost/15002" 2>/dev/null; then
               echo "Spark Connect ${{ matrix.spark }} is accepting connections."
