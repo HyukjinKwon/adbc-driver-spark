@@ -160,13 +160,21 @@ func (c *connection) listCatalogs(ctx context.Context, catalog *string) ([]strin
 }
 
 func (c *connection) listSchemas(ctx context.Context, catalog string, dbSchema *string) ([]string, error) {
-	sql := "SHOW NAMESPACES IN " + quoteIdent(catalog)
+	like := ""
 	if dbSchema != nil && *dbSchema != "" {
-		sql += " LIKE '" + escapeLike(*dbSchema) + "'"
+		like = " LIKE '" + escapeLike(*dbSchema) + "'"
 	}
-	names, err := c.queryStrings(ctx, sql, "namespace")
+	// "SHOW NAMESPACES IN <catalog>" is the portable form, but the v1 session
+	// catalog on several Spark versions rejects a qualified namespace with
+	// "Nested databases are not supported by v1 session catalog". Fall back to
+	// listing namespaces in the current catalog, then degrade to no schemas
+	// rather than failing the whole GetObjects call.
+	names, err := c.queryStrings(ctx, "SHOW NAMESPACES IN "+quoteIdent(catalog)+like, "namespace")
 	if err != nil {
-		return nil, err
+		names, err = c.queryStrings(ctx, "SHOW NAMESPACES"+like, "namespace")
+	}
+	if err != nil {
+		return nil, nil
 	}
 	return names, nil
 }
@@ -214,7 +222,12 @@ func (c *connection) queryStrings(ctx context.Context, sql, column string) ([]st
 			if col.IsNull(r) {
 				continue
 			}
-			out = append(out, col.Value(r))
+			// array.String.Value aliases the Arrow value buffer via unsafe; that
+			// buffer is freed when the reader is released (immediately under the
+			// CGO mallocator used by the shared library). Clone so the returned
+			// names stay valid after Release, avoiding a use-after-free that
+			// surfaced as catalog/schema names of spaces or zero length.
+			out = append(out, strings.Clone(col.Value(r)))
 		}
 	}
 	if err := reader.Err(); err != nil {

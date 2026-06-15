@@ -16,7 +16,9 @@
 package spark
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/apache/arrow-adbc/go/adbc"
 	"github.com/apache/arrow-go/v18/arrow"
@@ -59,14 +61,18 @@ func columnToLiteral(col arrow.Array, row int) (*connect.Expression_Literal, err
 		lit.LiteralType = &connect.Expression_Literal_Float{Float: arr.Value(row)}
 	case *array.Float64:
 		lit.LiteralType = &connect.Expression_Literal_Double{Double: arr.Value(row)}
+	// String and Binary values from arrow-go alias the underlying buffer (via
+	// unsafe), which is freed when the bound record is released, immediately so
+	// under the CGO mallocator. Clone so the literal survives until the plan is
+	// marshaled and sent.
 	case *array.String:
-		lit.LiteralType = &connect.Expression_Literal_String_{String_: arr.Value(row)}
+		lit.LiteralType = &connect.Expression_Literal_String_{String_: strings.Clone(arr.Value(row))}
 	case *array.LargeString:
-		lit.LiteralType = &connect.Expression_Literal_String_{String_: arr.Value(row)}
+		lit.LiteralType = &connect.Expression_Literal_String_{String_: strings.Clone(arr.Value(row))}
 	case *array.Binary:
-		lit.LiteralType = &connect.Expression_Literal_Binary{Binary: arr.Value(row)}
+		lit.LiteralType = &connect.Expression_Literal_Binary{Binary: bytes.Clone(arr.Value(row))}
 	case *array.LargeBinary:
-		lit.LiteralType = &connect.Expression_Literal_Binary{Binary: arr.Value(row)}
+		lit.LiteralType = &connect.Expression_Literal_Binary{Binary: bytes.Clone(arr.Value(row))}
 	case *array.Date32:
 		lit.LiteralType = &connect.Expression_Literal_Date{Date: int32(arr.Value(row))}
 	default:
