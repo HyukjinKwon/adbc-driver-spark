@@ -40,15 +40,28 @@ either download a release binary or build from source.
 
 ### Download a release binary
 
-Download `libadbc_driver_spark.{so,dylib,dll}` for your platform from the
-[Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) page, then
-point your ADBC driver manager at it.
+Release assets are per-platform tarballs on the
+[Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) page. Each
+tarball extracts to the current directory and contains
+`libadbc_driver_spark.{so,dylib,dll}` plus LICENSE and NOTICE. Download the asset
+for your platform and extract it, then point your ADBC driver manager at the
+extracted library:
 
-| Platform | File |
-|----------|------|
-| Linux    | `libadbc_driver_spark.so` |
-| macOS    | `libadbc_driver_spark.dylib` |
-| Windows  | `adbc_driver_spark.dll` |
+```bash
+# Download the shared library for your platform from the Releases page
+curl -fsSL -o adbc-spark.tar.gz \
+  https://github.com/HyukjinKwon/adbc-driver-spark/releases/latest/download/libadbc_driver_spark-linux-x86_64.tar.gz
+tar xzf adbc-spark.tar.gz
+export SPARK_DRIVER="$PWD/libadbc_driver_spark.so"   # .dylib on macOS, .dll on Windows
+```
+
+| Platform        | Asset |
+|-----------------|-------|
+| Linux x86_64    | `libadbc_driver_spark-linux-x86_64.tar.gz` |
+| Linux aarch64   | `libadbc_driver_spark-linux-aarch64.tar.gz` |
+| macOS x86_64    | `libadbc_driver_spark-macos-x86_64.tar.gz` |
+| macOS arm64     | `libadbc_driver_spark-macos-arm64.tar.gz` |
+| Windows x86_64  | `libadbc_driver_spark-windows-x86_64.tar.gz` |
 
 See [Using from C and C++](usage-c.md) and [Using from R](usage-r.md) for how to
 load the library.

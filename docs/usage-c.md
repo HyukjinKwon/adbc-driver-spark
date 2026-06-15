@@ -186,17 +186,34 @@ library live on your system if they are not on the default search path.
 
 ## Running
 
-Point `SPARK_DRIVER` at the Spark Connect shared library. The copy bundled in
-the Python wheel works well; the snippet below resolves it automatically:
+Point `SPARK_DRIVER` at the Spark Connect shared library. Download the tarball
+for your platform from the
+[Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) page and
+extract it. Each tarball extracts to the current directory and contains
+`libadbc_driver_spark.{so,dylib,dll}` plus LICENSE and NOTICE:
 
 ```bash
-# Resolve the bundled shared library (Linux .so / macOS .dylib / Windows .dll).
-export SPARK_DRIVER=$(python -c \
-  "import adbc_driver_spark, pathlib; \
-   print(next(pathlib.Path(adbc_driver_spark.__file__).parent.glob('libadbc_driver_spark.*')))")
+# Download the shared library for your platform from the Releases page
+curl -fsSL -o adbc-spark.tar.gz \
+  https://github.com/HyukjinKwon/adbc-driver-spark/releases/latest/download/libadbc_driver_spark-linux-x86_64.tar.gz
+tar xzf adbc-spark.tar.gz
+export SPARK_DRIVER="$PWD/libadbc_driver_spark.so"   # .dylib on macOS, .dll on Windows
 
 export SPARK_REMOTE=sc://localhost:15002
 ./quickstart
+```
+
+Pick the matching asset for your platform: `libadbc_driver_spark-linux-x86_64.tar.gz`,
+`libadbc_driver_spark-linux-aarch64.tar.gz`, `libadbc_driver_spark-macos-x86_64.tar.gz`,
+`libadbc_driver_spark-macos-arm64.tar.gz`, or `libadbc_driver_spark-windows-x86_64.tar.gz`.
+
+Alternatively, if you already have the Python package installed
+(`pip install adbc-driver-spark`), the bundled library is at:
+
+```bash
+export SPARK_DRIVER=$(python -c \
+  "import adbc_driver_spark, pathlib; \
+   print(next(pathlib.Path(adbc_driver_spark.__file__).parent.glob('libadbc_driver_spark.*')))")
 ```
 
 At run time the loader must also be able to find `libadbc_driver_manager` if it

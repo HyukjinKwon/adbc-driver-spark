@@ -17,11 +17,11 @@ install.packages("adbcdrivermanager")
 install.packages("arrow")   # optional, for Arrow-native results
 ```
 
-Obtain `libadbc_driver_spark.{so,dylib,dll}` from
-[Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) or build it
-from source (see [Installation](installation.md)). The copy bundled in the
-Python wheel works well. Start a Spark Connect server reachable at
-`sc://localhost:15002` before running.
+Obtain `libadbc_driver_spark.{so,dylib,dll}` by downloading the tarball for your
+platform from
+[Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) (or build it
+from source, see [Installation](installation.md)). Start a Spark Connect server
+reachable at `sc://localhost:15002` before running.
 
 ## The example script
 
@@ -67,16 +67,28 @@ with_adbc(db, {
 
 ## Running
 
-Point `SPARK_DRIVER` at the Spark Connect shared library (use the path for your
-platform) and run the script with `Rscript`:
+Download the shared library tarball for your platform from the
+[Releases](https://github.com/HyukjinKwon/adbc-driver-spark/releases) page,
+extract it, point `SPARK_DRIVER` at the extracted library, and run the script
+with `Rscript`:
 
 ```bash
-export SPARK_DRIVER=/path/to/libadbc_driver_spark.so
+# Download the shared library for your platform from the Releases page
+curl -fsSL -o adbc-spark.tar.gz \
+  https://github.com/HyukjinKwon/adbc-driver-spark/releases/latest/download/libadbc_driver_spark-linux-x86_64.tar.gz
+tar xzf adbc-spark.tar.gz
+export SPARK_DRIVER="$PWD/libadbc_driver_spark.so"   # .dylib on macOS, .dll on Windows
+
 export SPARK_REMOTE=sc://localhost:15002
 Rscript examples/r/quickstart.R
 ```
 
-If the driver came from the Python wheel, resolve its path automatically:
+Pick the matching asset for your platform: `libadbc_driver_spark-linux-x86_64.tar.gz`,
+`libadbc_driver_spark-linux-aarch64.tar.gz`, `libadbc_driver_spark-macos-x86_64.tar.gz`,
+`libadbc_driver_spark-macos-arm64.tar.gz`, or `libadbc_driver_spark-windows-x86_64.tar.gz`.
+
+Alternatively, if you already have the Python package installed
+(`pip install adbc-driver-spark`), the bundled library is at:
 
 ```bash
 export SPARK_DRIVER=$(python -c \
