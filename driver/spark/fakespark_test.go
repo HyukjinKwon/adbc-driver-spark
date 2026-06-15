@@ -63,6 +63,10 @@ type fakeServer struct {
 	alloc memory.Allocator
 	route func(query string) queryResult
 
+	// sparkVersion is returned from AnalyzePlan(SparkVersion); when empty the
+	// fake answers with an empty version string.
+	sparkVersion string
+
 	mu       sync.Mutex
 	calls    []capturedCall
 	conf     map[string]string
@@ -187,6 +191,22 @@ func (f *fakeServer) Config(_ context.Context, req *connect.ConfigRequest) (*con
 				val := v
 				resp.Pairs = append(resp.Pairs, &connect.KeyValue{Key: k, Value: &val})
 			}
+		}
+	}
+	return resp, nil
+}
+
+// AnalyzePlan answers the SparkVersion analyze request used by GetInfo to
+// report the vendor (Spark server) version. Only the SparkVersion analysis is
+// implemented; that is the single analyze the driver issues.
+func (f *fakeServer) AnalyzePlan(_ context.Context, req *connect.AnalyzePlanRequest) (*connect.AnalyzePlanResponse, error) {
+	resp := &connect.AnalyzePlanResponse{
+		SessionId:           req.GetSessionId(),
+		ServerSideSessionId: "fake-server-session",
+	}
+	if req.GetSparkVersion() != nil {
+		resp.Result = &connect.AnalyzePlanResponse_SparkVersion_{
+			SparkVersion: &connect.AnalyzePlanResponse_SparkVersion{Version: f.sparkVersion},
 		}
 	}
 	return resp, nil

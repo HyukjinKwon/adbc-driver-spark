@@ -234,6 +234,6 @@ DYLD_LIBRARY_PATH=/path/to/lib ./quickstart
 !!! note
     Authentication and other settings are plain database options. To use a
     bearer token over TLS, add
-    `AdbcDatabaseSetOption(&database, "adbc.spark.connect.token", "...", &error)`
-    and `"adbc.spark.connect.use_ssl", "true"`. See the
+    `AdbcDatabaseSetOption(&database, "adbc.spark.token", "...", &error)`
+    and `"adbc.spark.tls.enabled", "true"`. See the
     [Configuration Reference](configuration.md).

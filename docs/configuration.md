@@ -3,7 +3,7 @@
 
 This page lists every option the driver understands, grouped by the ADBC level
 at which it is set (database, connection, or statement). Spark-specific options
-use the `adbc.spark.connect.` prefix; standard ADBC options use the `adbc.`
+use the `adbc.spark.` prefix; standard ADBC options use the `adbc.`
 prefix.
 
 Options can be supplied as a `map[string]string` (Go), through `db_kwargs` /
@@ -18,13 +18,12 @@ Set these when creating the database (Go `NewDatabase`, Python
 | Option key                            | Connection-string field | Meaning |
 |---------------------------------------|--------------------------|---------|
 | `uri`                                 | (the whole string)       | Spark Connect connection string. Required. Defaults to `sc://localhost:15002`. |
-| `adbc.spark.connect.token`            | `token`                  | Bearer token, sent as `Authorization: Bearer`. Implies TLS. |
-| `adbc.spark.connect.use_ssl`          | `use_ssl`                | Enable TLS for the gRPC channel: `true` or `false`. Inferred `true` when a token is set. |
-| `adbc.spark.connect.user_id`          | `user_id`                | Spark Connect user id for the session. |
-| `adbc.spark.connect.user_agent`       | `user_agent`             | User agent advertised to the server. Defaults to `adbc-driver-spark/<version>`. |
-| `adbc.spark.connect.session_id`       | `session_id`             | Reuse an existing session id (a UUID). A new session is created when omitted. |
-| `adbc.spark.connect.timeout_seconds`  | (option only)            | Per-RPC timeout, in floating point seconds. |
-| `adbc.spark.connect.headers.<NAME>`   | (option only)            | Arbitrary gRPC metadata header `<NAME>`. Repeat the prefix per header. |
+| `adbc.spark.token`            | `token`                  | Bearer token, sent as `Authorization: Bearer`. Implies TLS. |
+| `adbc.spark.tls.enabled`      | `use_ssl` (or `DatabaseOptions.TLS_ENABLED`) | Enable TLS for the gRPC channel: `true` or `false`. Inferred `true` when a token is set. |
+| `adbc.spark.user_id`          | `user_id`                | Spark Connect user id for the session. |
+| `adbc.spark.user_agent`       | `user_agent`             | User agent advertised to the server. Defaults to `adbc-driver-spark/<version>`. |
+| `adbc.spark.session_id`       | `session_id`             | Reuse an existing session id (a UUID). A new session is created when omitted. |
+| `adbc.spark.headers.<NAME>`   | (option only)            | Arbitrary gRPC metadata header `<NAME>`. Repeat the prefix per header. |
 
 ## Connection options
 
@@ -35,7 +34,6 @@ Set these on the connection (Python `conn_kwargs`, or after open).
 | `adbc.connection.catalog`             | Set the current catalog (standard ADBC option; runs `USE CATALOG`). |
 | `adbc.connection.db_schema`           | Set the current schema/database (standard ADBC option; runs `USE <db>`). |
 | `adbc.connection.autocommit`          | Autocommit flag. Always effectively `true`. See below. |
-| `adbc.spark.connect.conf.<KEY>`       | Set a Spark runtime configuration value for the session, for example `adbc.spark.connect.conf.spark.sql.shuffle.partitions`. |
 
 ### Autocommit and transactions
 
@@ -76,9 +74,8 @@ The driver honors the standard ADBC keys where they apply:
         "sc://spark.example.com:443",
         token="eyJhbGci...",                                  # implies use_ssl=True
         db_kwargs={
-            "adbc.spark.connect.user_id": "analyst",
-            "adbc.spark.connect.timeout_seconds": "120",
-            "adbc.spark.connect.headers.x-request-source": "etl",
+            "adbc.spark.user_id": "analyst",
+            "adbc.spark.headers.x-request-source": "etl",
         },
         conn_kwargs={
             "adbc.connection.catalog": "spark_catalog",
@@ -92,15 +89,13 @@ The driver honors the standard ADBC keys where they apply:
     ```go
     db, err := drv.NewDatabase(map[string]string{
         "uri":                                  "sc://spark.example.com:443",
-        "adbc.spark.connect.token":             "eyJhbGci...",
-        "adbc.spark.connect.use_ssl":           "true",
-        "adbc.spark.connect.user_id":           "analyst",
-        "adbc.spark.connect.timeout_seconds":   "120",
-        "adbc.spark.connect.headers.x-request-source": "etl",
+        "adbc.spark.token":                     "eyJhbGci...",
+        "adbc.spark.tls.enabled":               "true",
+        "adbc.spark.user_id":                   "analyst",
+        "adbc.spark.headers.x-request-source":  "etl",
     })
     ```
 
 In Python, the Spark-specific keys are also available as enum values on
-`adbc_driver_spark.DatabaseOptions`, `ConnectionOptions`, and
-`StatementOptions`, so you can reference `DatabaseOptions.TOKEN.value` instead of
-the raw string.
+`adbc_driver_spark.DatabaseOptions`, so you can reference
+`DatabaseOptions.TOKEN.value` instead of the raw string.

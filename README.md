@@ -152,12 +152,11 @@ Common options:
 | Option                                   | Meaning                                   |
 |------------------------------------------|-------------------------------------------|
 | `uri`                                    | Spark Connect connection string (required)|
-| `adbc.spark.connect.token`               | Bearer token for authentication           |
-| `adbc.spark.connect.use_ssl`             | `true` or `false`                         |
-| `adbc.spark.connect.user_id`             | Spark Connect user id                     |
-| `adbc.spark.connect.user_agent`          | Custom user agent string                  |
-| `adbc.spark.connect.headers.<NAME>`      | Extra gRPC metadata header                |
-| `adbc.spark.connect.timeout_seconds`     | Per-RPC timeout                           |
+| `adbc.spark.token`                       | Bearer token for authentication           |
+| `adbc.spark.tls.enabled`                 | `true` or `false`                         |
+| `adbc.spark.user_id`                     | Spark Connect user id                     |
+| `adbc.spark.user_agent`                  | Custom user agent string                  |
+| `adbc.spark.headers.<NAME>`              | Extra gRPC metadata header                |
 
 See the [Configuration Reference](https://hyukjinkwon.github.io/adbc-driver-spark/configuration/)
 for the full list.
@@ -179,7 +178,7 @@ for the full list.
 
 | Component        | Supported                                            |
 |------------------|------------------------------------------------------|
-| Spark Connect    | Spark 3.5.x, 4.0.x, 4.1.x (protos pinned to v4.1.0)  |
+| Spark Connect    | Spark 3.5.x, 4.0.x, 4.1.x (protos pinned to v4.1.2)  |
 | ADBC API         | 1.1.0                                                |
 | Python           | 3.9 - 3.13                                            |
 | Go               | 1.25+                                                |

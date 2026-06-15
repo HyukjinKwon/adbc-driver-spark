@@ -73,6 +73,11 @@ class DatabaseOptions(enum.Enum):
     #: Pin the client to a specific server-side Spark Connect session id. When
     #: omitted the driver creates a fresh session.
     SESSION_ID = "adbc.spark.session_id"
+    #: Prefix for setting an arbitrary gRPC metadata header. This is a prefix,
+    #: not a complete key: append the header name, for example
+    #: ``DatabaseOptions.HEADER_PREFIX.value + "x-request-source"``. Mirrors how
+    #: unknown connection-string parameters are forwarded as headers.
+    HEADER_PREFIX = "adbc.spark.headers."
 
 
 def connect(

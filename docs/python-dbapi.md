@@ -22,14 +22,14 @@ conn = dbapi.connect("sc://localhost:15002")
 | `token`       | Convenience bearer token. Implies `use_ssl=True`.              |
 | `use_ssl`     | Force TLS on or off.                                           |
 | `db_kwargs`   | Extra database options (see `adbc_driver_spark.DatabaseOptions`). |
-| `conn_kwargs` | Extra connection options (see `adbc_driver_spark.ConnectionOptions`). |
+| `conn_kwargs` | Extra connection options (standard `adbc.connection.*` keys). |
 | `autocommit`  | Defaults to `True`. Spark Connect has no transactions.         |
 
 ```python
 conn = dbapi.connect(
     "sc://spark.example.com:443",
     token="eyJhbGci...",
-    db_kwargs={"adbc.spark.connect.user_id": "analyst"},
+    db_kwargs={"adbc.spark.user_id": "analyst"},
 )
 ```
 

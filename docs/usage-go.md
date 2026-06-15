@@ -83,9 +83,9 @@ Database, connection, and statement options are plain `map[string]string` /
 
 ```go
 db, err := drv.NewDatabase(map[string]string{
-	"uri":                        "sc://spark.example.com:443",
-	"adbc.spark.connect.token":   "eyJhbGci...",
-	"adbc.spark.connect.use_ssl": "true",
+	"uri":                "sc://spark.example.com:443",
+	"adbc.spark.token":   "eyJhbGci...",
+	"adbc.spark.tls.enabled": "true",
 })
 ```
 

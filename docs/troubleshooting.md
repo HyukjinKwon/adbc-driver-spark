@@ -60,7 +60,7 @@ For very large result sets:
   how many batches the driver buffers.
 - If a long query drops mid-stream, the driver's reattachable execution resumes
   it automatically; a persistent failure usually points at a server-side or
-  network timeout (`adbc.spark.connect.timeout_seconds`).
+  network timeout.
 
 ## CGO or shared library not found
 
@@ -89,7 +89,7 @@ proto: cannot parse invalid wire-format data
 ```
 
 - Check the Spark Connect server version. The driver supports Spark 4.0.x and
-  4.1.x (protos pinned to v4.1.0). See [Compatibility](compatibility.md).
+  4.1.x (protos pinned to v4.1.2). See [Compatibility](compatibility.md).
 - For Go, the module requires Go 1.25 or newer and matched `arrow-go` and
   `arrow-adbc` versions; run `go mod tidy` if you see resolution errors.
 - For Python, ensure `pyarrow` and `adbc-driver-manager` were installed by the

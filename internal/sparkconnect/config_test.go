@@ -348,6 +348,35 @@ func TestParseConnectionStringIPv6(t *testing.T) {
 	}
 }
 
+// TestParseConnectionStringTokenPlusPreserved verifies that a literal '+' in a
+// parameter value (common in base64 secrets / JWTs) is preserved. The parser
+// uses PathUnescape rather than QueryUnescape, which would corrupt a '+' into a
+// space.
+func TestParseConnectionStringTokenPlusPreserved(t *testing.T) {
+	cfg, err := ParseConnectionString("sc://h:1/;token=ab+cd==")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Token != "ab+cd==" {
+		t.Errorf("Token = %q, want %q (literal '+' must be preserved)", cfg.Token, "ab+cd==")
+	}
+}
+
+// TestParseConnectionStringPercentEncoding verifies that percent-encoded values
+// still decode so encoding is not broken: %2B -> '+' and %20 -> space.
+func TestParseConnectionStringPercentEncoding(t *testing.T) {
+	cfg, err := ParseConnectionString("sc://h:1/;token=a%2Bb;user_agent=x%20y")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Token != "a+b" {
+		t.Errorf("Token = %q, want %q (%%2B should decode to '+')", cfg.Token, "a+b")
+	}
+	if cfg.UserAgent != "x y" {
+		t.Errorf("UserAgent = %q, want %q (%%20 should decode to space)", cfg.UserAgent, "x y")
+	}
+}
+
 // TestEndpointFormatting verifies Endpoint joins host and port.
 func TestEndpointFormatting(t *testing.T) {
 	cfg, err := ParseConnectionString("sc://example.com:7077")

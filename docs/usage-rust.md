@@ -82,5 +82,5 @@ and is run against a live Spark Connect server on every CI run.
 
 !!! tip
     For TLS and bearer-token endpoints, add the matching database options, for
-    example `(OptionDatabase::Other("adbc.spark.connect.token".into()), token.into())`.
+    example `(OptionDatabase::Other("adbc.spark.token".into()), token.into())`.
     See the [Configuration Reference](configuration.md).

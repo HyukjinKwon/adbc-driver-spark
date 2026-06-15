@@ -84,6 +84,16 @@ func (d *database) SetOptions(opts map[string]string) error {
 			}
 			cfg.UseTLS = b
 		default:
+			// Any "adbc.spark.headers.<NAME>" key sets a gRPC metadata header,
+			// mirroring how the connection string forwards unknown URI parameters
+			// as headers. This keeps the option and URI paths at parity.
+			if name, ok := strings.CutPrefix(key, OptionKeyHeaderPrefix); ok && name != "" {
+				if cfg.Headers == nil {
+					cfg.Headers = map[string]string{}
+				}
+				cfg.Headers[name] = value
+				continue
+			}
 			// Reject unrecognized driver-specific keys rather than silently
 			// dropping them (a common cause of "my token was ignored"). Other
 			// standard adbc.* keys are accepted but unused.

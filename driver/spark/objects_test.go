@@ -110,6 +110,35 @@ func TestFilterByPattern(t *testing.T) {
 	}
 }
 
+// TestTableTypeAllowed verifies the (possibly empty) table_type filter. An
+// empty filter allows everything; a non-empty filter matches case-insensitively
+// (the implementation uses strings.EqualFold).
+func TestTableTypeAllowed(t *testing.T) {
+	tests := []struct {
+		name   string
+		tt     string
+		filter []string
+		want   bool
+	}{
+		{"empty filter allows TABLE", "TABLE", nil, true},
+		{"empty filter allows VIEW", "VIEW", nil, true},
+		{"empty filter allows TEMPORARY", "TEMPORARY", []string{}, true},
+		{"TABLE filter allows TABLE", "TABLE", []string{"TABLE"}, true},
+		{"TABLE filter rejects VIEW", "VIEW", []string{"TABLE"}, false},
+		{"TABLE filter rejects TEMPORARY", "TEMPORARY", []string{"TABLE"}, false},
+		{"multi filter allows member", "VIEW", []string{"TABLE", "VIEW"}, true},
+		{"case insensitive match", "TABLE", []string{"table"}, true},
+		{"case insensitive reject", "VIEW", []string{"table"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tableTypeAllowed(tt.tt, tt.filter); got != tt.want {
+				t.Errorf("tableTypeAllowed(%q, %v) = %v, want %v", tt.tt, tt.filter, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestLikeMatchMore extends coverage of the LIKE matcher with trickier cases.
 func TestLikeMatchMore(t *testing.T) {
 	tests := []struct {

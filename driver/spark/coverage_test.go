@@ -617,6 +617,192 @@ func TestDriverNewDatabaseWithContext(t *testing.T) {
 	_ = db.Close()
 }
 
+// TestDatabaseSetOptionsUnknownSparkKey verifies that an unknown driver-specific
+// "adbc.spark.*" option is rejected with StatusNotImplemented rather than being
+// silently dropped.
+func TestDatabaseSetOptionsUnknownSparkKey(t *testing.T) {
+	drv := NewDriver(memory.DefaultAllocator)
+	db, err := drv.NewDatabase(map[string]string{OptionKeyURI: "sc://localhost:15002"})
+	if err != nil {
+		t.Fatalf("NewDatabase: %v", err)
+	}
+	d := db.(*database)
+	err = d.SetOptions(map[string]string{"adbc.spark.bogus": "x"})
+	var ae adbc.Error
+	if !errors.As(err, &ae) {
+		t.Fatalf("expected adbc.Error, got %T: %v", err, err)
+	}
+	if ae.Code != adbc.StatusNotImplemented {
+		t.Errorf("Code = %v, want StatusNotImplemented", ae.Code)
+	}
+}
+
+// TestDatabaseSetOptionsNonSparkKeyAccepted verifies that an arbitrary key
+// outside the "adbc.spark." namespace is accepted (ignored) rather than
+// rejected, so standard adbc.* keys do not break configuration.
+func TestDatabaseSetOptionsNonSparkKeyAccepted(t *testing.T) {
+	drv := NewDriver(memory.DefaultAllocator)
+	db, err := drv.NewDatabase(map[string]string{OptionKeyURI: "sc://localhost:15002"})
+	if err != nil {
+		t.Fatalf("NewDatabase: %v", err)
+	}
+	d := db.(*database)
+	if err := d.SetOptions(map[string]string{"foo": "bar"}); err != nil {
+		t.Errorf("non-spark key should be accepted, got %v", err)
+	}
+	if err := d.SetOptions(map[string]string{"adbc.connection.autocommit": "true"}); err != nil {
+		t.Errorf("standard adbc key should be accepted, got %v", err)
+	}
+}
+
+// TestDatabaseSetOptionsKnownSparkKeyAccepted verifies that a recognized
+// "adbc.spark.*" key (the token) is accepted and applied to the config.
+func TestDatabaseSetOptionsKnownSparkKeyAccepted(t *testing.T) {
+	drv := NewDriver(memory.DefaultAllocator)
+	db, err := drv.NewDatabase(map[string]string{OptionKeyURI: "sc://localhost:15002"})
+	if err != nil {
+		t.Fatalf("NewDatabase: %v", err)
+	}
+	d := db.(*database)
+	if err := d.SetOptions(map[string]string{OptionKeyToken: "tok-123"}); err != nil {
+		t.Fatalf("known spark key should be accepted, got %v", err)
+	}
+	d.mu.Lock()
+	tok := d.cfg.Token
+	d.mu.Unlock()
+	if tok != "tok-123" {
+		t.Errorf("token = %q, want tok-123", tok)
+	}
+}
+
+// TestDatabaseSetOptionsHeaderOption verifies that a key with the
+// OptionKeyHeaderPrefix prefix is parsed into a gRPC metadata header in the
+// config's Headers map, and that a bare prefix with an empty header name is
+// rejected with StatusNotImplemented (it falls through to the unknown-key path
+// because the parsed header name is empty).
+func TestDatabaseSetOptionsHeaderOption(t *testing.T) {
+	drv := NewDriver(memory.DefaultAllocator)
+	db, err := drv.NewDatabase(map[string]string{
+		OptionKeyURI: "sc://localhost:15002",
+		OptionKeyHeaderPrefix + "x-request-source": "analytics",
+	})
+	if err != nil {
+		t.Fatalf("NewDatabase: %v", err)
+	}
+	d := db.(*database)
+	d.mu.Lock()
+	got := d.cfg.Headers["x-request-source"]
+	d.mu.Unlock()
+	if got != "analytics" {
+		t.Errorf("Headers[\"x-request-source\"] = %q, want %q", got, "analytics")
+	}
+
+	// A bare prefix has an empty header name, so it does not set a header and
+	// instead falls through to the unknown "adbc.spark." key rejection.
+	err = d.SetOptions(map[string]string{OptionKeyHeaderPrefix: "ignored"})
+	var ae adbc.Error
+	if !errors.As(err, &ae) {
+		t.Fatalf("bare header prefix: expected adbc.Error, got %T: %v", err, err)
+	}
+	if ae.Code != adbc.StatusNotImplemented {
+		t.Errorf("bare header prefix: Code = %v, want StatusNotImplemented", ae.Code)
+	}
+}
+
+// --- connection methods after Close ---
+
+// TestConnectionMethodsAfterClose verifies that each metadata/statement entry
+// point returns a StatusInvalidState adbc.Error (rather than panicking on the
+// nil client) once the connection has been closed.
+func TestConnectionMethodsAfterClose(t *testing.T) {
+	srv := newFakeServer(memory.DefaultAllocator, nil)
+	uri := startFakeServer(t, srv)
+
+	drv := NewDriver(memory.DefaultAllocator)
+	db, err := drv.NewDatabase(map[string]string{adbc.OptionKeyURI: uri})
+	if err != nil {
+		t.Fatalf("NewDatabase: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	cnxn, err := db.Open(context.Background())
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := cnxn.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	ctx := context.Background()
+	assertInvalidState := func(name string, err error) {
+		t.Helper()
+		var ae adbc.Error
+		if !errors.As(err, &ae) {
+			t.Fatalf("%s: expected adbc.Error, got %T: %v", name, err, err)
+		}
+		if ae.Code != adbc.StatusInvalidState {
+			t.Errorf("%s: Code = %v, want StatusInvalidState", name, ae.Code)
+		}
+	}
+
+	cat, sch := "c", "s"
+	_, err = cnxn.GetTableSchema(ctx, &cat, &sch, "t")
+	assertInvalidState("GetTableSchema", err)
+
+	_, err = cnxn.GetObjects(ctx, adbc.ObjectDepthCatalogs, nil, nil, nil, nil, nil)
+	assertInvalidState("GetObjects", err)
+
+	_, err = cnxn.GetTableTypes(ctx)
+	assertInvalidState("GetTableTypes", err)
+
+	_, err = cnxn.GetInfo(ctx, nil)
+	assertInvalidState("GetInfo", err)
+
+	_, err = cnxn.NewStatement()
+	assertInvalidState("NewStatement", err)
+}
+
+// --- GetInfo vendor version (hermetic) ---
+
+// TestGetInfoReportsVendorVersion verifies that when the fake server answers the
+// SparkVersion analyze request, GetInfo(InfoVendorVersion) returns a row whose
+// string value is the non-empty server-reported version.
+func TestGetInfoReportsVendorVersion(t *testing.T) {
+	srv := newFakeServer(memory.DefaultAllocator, nil)
+	srv.sparkVersion = "4.0.0-fake"
+	uri := startFakeServer(t, srv)
+	cnxn := openTestConn(t, uri)
+
+	reader, err := cnxn.GetInfo(context.Background(), []adbc.InfoCode{adbc.InfoVendorVersion})
+	if err != nil {
+		t.Fatalf("GetInfo: %v", err)
+	}
+	defer reader.Release()
+
+	var version string
+	var rows int
+	for reader.Next() {
+		rec := reader.RecordBatch()
+		names := rec.Column(0).(*array.Uint32)
+		values := rec.Column(1).(*array.DenseUnion)
+		strChild := values.Field(0).(*array.String)
+		for i := 0; i < int(rec.NumRows()); i++ {
+			rows++
+			if adbc.InfoCode(names.Value(i)) == adbc.InfoVendorVersion && values.TypeCode(i) == 0 {
+				version = strChild.Value(int(values.ValueOffset(i)))
+			}
+		}
+	}
+	if err := reader.Err(); err != nil {
+		t.Fatalf("reader.Err: %v", err)
+	}
+	if rows < 1 {
+		t.Fatal("GetInfo(InfoVendorVersion) returned no rows")
+	}
+	if version != "4.0.0-fake" {
+		t.Errorf("vendor version = %q, want %q", version, "4.0.0-fake")
+	}
+}
+
 func TestServerSideSessionIDCaptured(t *testing.T) {
 	// Drive a query through the driver and confirm the underlying client
 	// captured the server-side session id reported by the fake server.

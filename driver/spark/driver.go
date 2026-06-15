@@ -81,6 +81,10 @@ const (
 	// OptionKeyTLSEnabled forces TLS on ("true") or off ("false"), overriding
 	// whatever the connection string implies.
 	OptionKeyTLSEnabled = "adbc.spark.tls.enabled"
+	// OptionKeyHeaderPrefix is the prefix for setting arbitrary gRPC metadata
+	// headers. A key "adbc.spark.headers.x-foo" sets the header "x-foo". This
+	// mirrors how unknown connection-string parameters are forwarded as headers.
+	OptionKeyHeaderPrefix = "adbc.spark.headers."
 )
 
 // driver is the concrete adbc.Driver implementation for Spark Connect.

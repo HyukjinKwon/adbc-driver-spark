@@ -9,7 +9,7 @@ which ADBC features it implements, and how each language consumes it.
 | Spark version | Status     | Notes |
 |---------------|------------|-------|
 | 4.1.x         | Supported  | Primary target. |
-| 4.0.x         | Supported  | Wire-compatible; Spark Connect protos are pinned to v4.1.0. |
+| 4.0.x         | Supported  | Wire-compatible; Spark Connect protos are pinned to v4.1.2. |
 | 3.5.x         | Supported  | Uses the Scala 2.13 build of Spark 3.5. |
 
 Every supported line is exercised on every CI run against a live Spark Connect
@@ -32,7 +32,7 @@ Connect compatible endpoints that speak the same protocol work as well; see
 | `GetTableTypes`                       | Yes       | |
 | `GetInfo`                             | Yes       | Driver and server info. |
 | TLS / bearer-token auth               | Yes       | |
-| Custom gRPC headers                   | Yes       | `adbc.spark.connect.headers.<NAME>`. |
+| Custom gRPC headers                   | Yes       | `adbc.spark.headers.<NAME>`. |
 | Autocommit                            | Yes       | Always on. |
 | Transactions (`Commit` / `Rollback`)  | No        | Reports `ADBC_STATUS_NOT_IMPLEMENTED`. |
 | Substrait execution                   | No        | Reports `ADBC_STATUS_NOT_IMPLEMENTED`. |

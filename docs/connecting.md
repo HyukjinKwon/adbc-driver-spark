@@ -25,7 +25,7 @@ separator (`/;`) is a list of `key=value` pairs separated by semicolons.
 
 !!! note
     Each option in the connection string also has an equivalent ADBC option key
-    (for example `adbc.spark.connect.token`). Inline string fields and option
+    (for example `adbc.spark.token`). Inline string fields and option
     keys can be mixed; option keys take precedence. See the
     [Configuration Reference](configuration.md).
 
@@ -131,9 +131,9 @@ bearer token over plaintext would leak the credential.
 
     ```go
     db, err := drv.NewDatabase(map[string]string{
-        "uri":                          "sc://spark.example.com:443",
-        "adbc.spark.connect.token":     "eyJhbGci...",
-        "adbc.spark.connect.use_ssl":   "true",
+        "uri":                     "sc://spark.example.com:443",
+        "adbc.spark.token":        "eyJhbGci...",
+        "adbc.spark.tls.enabled":  "true",
     })
     ```
 
@@ -142,9 +142,9 @@ bearer token over plaintext would leak the credential.
     ```c
     /* Auth settings are plain database options. Setting a token enables TLS. */
     AdbcDatabaseSetOption(&database, "uri", "sc://spark.example.com:443", &error);
-    AdbcDatabaseSetOption(&database, "adbc.spark.connect.token", "eyJhbGci...",
+    AdbcDatabaseSetOption(&database, "adbc.spark.token", "eyJhbGci...",
                           &error);
-    AdbcDatabaseSetOption(&database, "adbc.spark.connect.use_ssl", "true", &error);
+    AdbcDatabaseSetOption(&database, "adbc.spark.tls.enabled", "true", &error);
     ```
 
 === "R"
@@ -154,8 +154,8 @@ bearer token over plaintext would leak the credential.
     db <- adbc_database_init(
         drv,
         uri = "sc://spark.example.com:443",
-        adbc.spark.connect.token = "eyJhbGci...",
-        adbc.spark.connect.use_ssl = "true")
+        adbc.spark.token = "eyJhbGci...",
+        adbc.spark.tls.enabled = "true")
     ```
 
 === "Rust"
@@ -164,8 +164,8 @@ bearer token over plaintext would leak the credential.
     // Auth settings are extra database options. Setting a token enables TLS.
     let mut database = driver.new_database_with_opts([
         (OptionDatabase::Uri, "sc://spark.example.com:443".into()),
-        (OptionDatabase::Other("adbc.spark.connect.token".into()), "eyJhbGci...".into()),
-        (OptionDatabase::Other("adbc.spark.connect.use_ssl".into()), "true".into()),
+        (OptionDatabase::Other("adbc.spark.token".into()), "eyJhbGci...".into()),
+        (OptionDatabase::Other("adbc.spark.tls.enabled".into()), "true".into()),
     ])?;
     ```
 
@@ -190,16 +190,15 @@ bearer token over plaintext would leak the credential.
 ## Custom headers
 
 Arbitrary gRPC metadata headers can be attached to every request using the
-`adbc.spark.connect.headers.<NAME>` option prefix, or inline header fields in
+`adbc.spark.headers.<NAME>` option prefix, or inline header fields in
 the URI where the server supports them.
 
 === "Python"
 
     ```python
-    import adbc_driver_spark
     import adbc_driver_spark.dbapi as dbapi
 
-    headers = adbc_driver_spark.DatabaseOptions.HEADER_PREFIX.value  # "adbc.spark.connect.headers."
+    headers = "adbc.spark.headers."
     with dbapi.connect(
         "sc://spark.example.com:443",
         token="eyJhbGci...",
@@ -213,8 +212,8 @@ the URI where the server supports them.
     ```go
     db, err := drv.NewDatabase(map[string]string{
         "uri":                                       "sc://spark.example.com:443",
-        "adbc.spark.connect.token":                  "eyJhbGci...",
-        "adbc.spark.connect.headers.x-request-source": "analytics-team",
+        "adbc.spark.token":                  "eyJhbGci...",
+        "adbc.spark.headers.x-request-source": "analytics-team",
     })
     ```
 
@@ -223,10 +222,10 @@ the URI where the server supports them.
     ```c
     /* Attach a gRPC metadata header with the headers.<NAME> option prefix. */
     AdbcDatabaseSetOption(&database, "uri", "sc://spark.example.com:443", &error);
-    AdbcDatabaseSetOption(&database, "adbc.spark.connect.token", "eyJhbGci...",
+    AdbcDatabaseSetOption(&database, "adbc.spark.token", "eyJhbGci...",
                           &error);
     AdbcDatabaseSetOption(&database,
-                          "adbc.spark.connect.headers.x-request-source",
+                          "adbc.spark.headers.x-request-source",
                           "analytics-team", &error);
     ```
 
@@ -236,8 +235,8 @@ the URI where the server supports them.
     db <- adbc_database_init(
         drv,
         uri = "sc://spark.example.com:443",
-        adbc.spark.connect.token = "eyJhbGci...",
-        `adbc.spark.connect.headers.x-request-source` = "analytics-team")
+        adbc.spark.token = "eyJhbGci...",
+        `adbc.spark.headers.x-request-source` = "analytics-team")
     ```
 
 === "Rust"
@@ -246,9 +245,9 @@ the URI where the server supports them.
     // Attach a gRPC metadata header with the headers.<NAME> option prefix.
     let mut database = driver.new_database_with_opts([
         (OptionDatabase::Uri, "sc://spark.example.com:443".into()),
-        (OptionDatabase::Other("adbc.spark.connect.token".into()), "eyJhbGci...".into()),
+        (OptionDatabase::Other("adbc.spark.token".into()), "eyJhbGci...".into()),
         (
-            OptionDatabase::Other("adbc.spark.connect.headers.x-request-source".into()),
+            OptionDatabase::Other("adbc.spark.headers.x-request-source".into()),
             "analytics-team".into(),
         ),
     ])?;
@@ -262,7 +261,7 @@ the URI where the server supports them.
       driver: driver,
       uri: "sc://spark.example.com:443",
       token: "eyJhbGci...",
-      "adbc.spark.connect.headers.x-request-source": "analytics-team",
+      "adbc.spark.headers.x-request-source": "analytics-team",
     ) do |database|
       # ...
     end
@@ -279,10 +278,9 @@ token-and-TLS endpoint.
 
     ```python
     import os
-    import adbc_driver_spark
     import adbc_driver_spark.dbapi as dbapi
 
-    headers = adbc_driver_spark.DatabaseOptions.HEADER_PREFIX.value
+    headers = "adbc.spark.headers."
     with dbapi.connect(
         "sc://dbc-12345678-90ab.cloud.databricks.com:443",
         token=os.environ["DATABRICKS_TOKEN"],   # implies use_ssl=True
@@ -299,10 +297,10 @@ token-and-TLS endpoint.
 
     ```go
     db, err := drv.NewDatabase(map[string]string{
-        "uri":                                          "sc://dbc-12345678-90ab.cloud.databricks.com:443",
-        "adbc.spark.connect.token":                     os.Getenv("DATABRICKS_TOKEN"),
-        "adbc.spark.connect.use_ssl":                   "true",
-        "adbc.spark.connect.headers.x-databricks-cluster-id": os.Getenv("DATABRICKS_CLUSTER_ID"),
+        "uri":                                        "sc://dbc-12345678-90ab.cloud.databricks.com:443",
+        "adbc.spark.token":                           os.Getenv("DATABRICKS_TOKEN"),
+        "adbc.spark.tls.enabled":                     "true",
+        "adbc.spark.headers.x-databricks-cluster-id": os.Getenv("DATABRICKS_CLUSTER_ID"),
     })
     ```
 
@@ -312,11 +310,11 @@ token-and-TLS endpoint.
     /* Token over TLS plus the cluster id header, read from the environment. */
     AdbcDatabaseSetOption(&database, "uri",
                           "sc://dbc-12345678-90ab.cloud.databricks.com:443", &error);
-    AdbcDatabaseSetOption(&database, "adbc.spark.connect.token",
+    AdbcDatabaseSetOption(&database, "adbc.spark.token",
                           getenv("DATABRICKS_TOKEN"), &error);
-    AdbcDatabaseSetOption(&database, "adbc.spark.connect.use_ssl", "true", &error);
+    AdbcDatabaseSetOption(&database, "adbc.spark.tls.enabled", "true", &error);
     AdbcDatabaseSetOption(&database,
-                          "adbc.spark.connect.headers.x-databricks-cluster-id",
+                          "adbc.spark.headers.x-databricks-cluster-id",
                           getenv("DATABRICKS_CLUSTER_ID"), &error);
     ```
 
@@ -326,9 +324,9 @@ token-and-TLS endpoint.
     db <- adbc_database_init(
         drv,
         uri = "sc://dbc-12345678-90ab.cloud.databricks.com:443",
-        adbc.spark.connect.token = Sys.getenv("DATABRICKS_TOKEN"),
-        adbc.spark.connect.use_ssl = "true",
-        `adbc.spark.connect.headers.x-databricks-cluster-id` =
+        adbc.spark.token = Sys.getenv("DATABRICKS_TOKEN"),
+        adbc.spark.tls.enabled = "true",
+        `adbc.spark.headers.x-databricks-cluster-id` =
             Sys.getenv("DATABRICKS_CLUSTER_ID"))
     ```
 
@@ -341,12 +339,12 @@ token-and-TLS endpoint.
     let mut database = driver.new_database_with_opts([
         (OptionDatabase::Uri, "sc://dbc-12345678-90ab.cloud.databricks.com:443".into()),
         (
-            OptionDatabase::Other("adbc.spark.connect.token".into()),
+            OptionDatabase::Other("adbc.spark.token".into()),
             env::var("DATABRICKS_TOKEN")?.into(),
         ),
-        (OptionDatabase::Other("adbc.spark.connect.use_ssl".into()), "true".into()),
+        (OptionDatabase::Other("adbc.spark.tls.enabled".into()), "true".into()),
         (
-            OptionDatabase::Other("adbc.spark.connect.headers.x-databricks-cluster-id".into()),
+            OptionDatabase::Other("adbc.spark.headers.x-databricks-cluster-id".into()),
             env::var("DATABRICKS_CLUSTER_ID")?.into(),
         ),
     ])?;
@@ -361,7 +359,7 @@ token-and-TLS endpoint.
       uri: "sc://dbc-12345678-90ab.cloud.databricks.com:443",
       token: ENV.fetch("DATABRICKS_TOKEN"),
       use_ssl: true,
-      "adbc.spark.connect.headers.x-databricks-cluster-id": ENV.fetch("DATABRICKS_CLUSTER_ID"),
+      "adbc.spark.headers.x-databricks-cluster-id": ENV.fetch("DATABRICKS_CLUSTER_ID"),
     ) do |database|
       database.connect do |connection|
         puts connection.query("SHOW CATALOGS")

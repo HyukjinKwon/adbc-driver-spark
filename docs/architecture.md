@@ -114,8 +114,7 @@ schema. Column and table types follow the [Type Mapping](type-mapping.md).
 Each connection maps to a Spark Connect session. Supplying a `session_id` reuses
 an existing session, so temporary views and session configuration persist across
 connections. Session configuration values are read and written through the
-`Config` RPC, which also backs the `adbc.spark.connect.conf.<KEY>` connection
-options.
+`Config` RPC.
 
 !!! note
     Spark Connect is autocommit only, so the driver has no transaction state to

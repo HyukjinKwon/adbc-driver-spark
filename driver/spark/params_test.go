@@ -18,6 +18,7 @@ package spark
 import (
 	"bytes"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/apache/arrow-adbc/go/adbc"
@@ -371,6 +372,52 @@ func TestColumnToLiteralStringValueSurvivesRelease(t *testing.T) {
 
 	if lit.GetString_() != "persisted" {
 		t.Errorf("string value did not survive Release: %q", lit.GetString_())
+	}
+}
+
+// TestColumnToLiteralUint64Overflow verifies that a uint64 value greater than
+// math.MaxInt64 cannot be represented as a signed Spark long and yields a
+// StatusInvalidArgument adbc.Error rather than silently wrapping to a negative.
+func TestColumnToLiteralUint64Overflow(t *testing.T) {
+	alloc := memory.DefaultAllocator
+	b := array.NewUint64Builder(alloc)
+	defer b.Release()
+	b.Append(math.MaxInt64 + 1) // 9223372036854775808, one past the signed max
+	arr := b.NewArray()
+	defer arr.Release()
+
+	_, err := columnToLiteral(arr, 0)
+	if err == nil {
+		t.Fatal("expected error for uint64 value exceeding MaxInt64")
+	}
+	var ae adbc.Error
+	if !errors.As(err, &ae) {
+		t.Fatalf("expected adbc.Error, got %T: %v", err, err)
+	}
+	if ae.Code != adbc.StatusInvalidArgument {
+		t.Errorf("Code = %v, want StatusInvalidArgument", ae.Code)
+	}
+}
+
+// TestColumnToLiteralUint64MaxInt64 verifies that the boundary value exactly
+// equal to math.MaxInt64 is accepted and converted to the matching long.
+func TestColumnToLiteralUint64MaxInt64(t *testing.T) {
+	alloc := memory.DefaultAllocator
+	b := array.NewUint64Builder(alloc)
+	defer b.Release()
+	b.Append(math.MaxInt64)
+	arr := b.NewArray()
+	defer arr.Release()
+
+	lit, err := columnToLiteral(arr, 0)
+	if err != nil {
+		t.Fatalf("unexpected error at boundary: %v", err)
+	}
+	if _, ok := lit.LiteralType.(*connect.Expression_Literal_Long); !ok {
+		t.Fatalf("got %T, want Long", lit.LiteralType)
+	}
+	if lit.GetLong() != math.MaxInt64 {
+		t.Errorf("Long = %d, want %d", lit.GetLong(), int64(math.MaxInt64))
 	}
 }
 

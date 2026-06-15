@@ -52,8 +52,7 @@ db.close()
 
 ## Options
 
-See `adbc_driver_spark.DatabaseOptions`, `ConnectionOptions`, and
-`StatementOptions`. Everything that can go in the connection string
+See `adbc_driver_spark.DatabaseOptions`. Everything that can go in the connection string
 (`sc://host:port/;token=...;use_ssl=true`) can also be passed via `db_kwargs`.
 
 ## Development

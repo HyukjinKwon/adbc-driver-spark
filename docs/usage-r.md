@@ -135,8 +135,8 @@ bearer token over TLS:
 db <- adbc_database_init(
   driver,
   uri = "sc://spark.example.com:443",
-  adbc.spark.connect.token = Sys.getenv("SPARK_TOKEN"),
-  adbc.spark.connect.use_ssl = "true"
+  adbc.spark.token = Sys.getenv("SPARK_TOKEN"),
+  adbc.spark.tls.enabled = "true"
 )
 ```
 
