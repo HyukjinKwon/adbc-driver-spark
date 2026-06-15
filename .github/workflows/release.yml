@@ -220,11 +220,16 @@ jobs:
           set -eux
           tag="${GITHUB_REF_NAME}"
           notes="See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${tag}/CHANGELOG.md)."
-          gh release create "$tag" upload/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "$tag" \
-            --notes "$notes" \
-            --verify-tag
+          # Idempotent: create the release, or upload/replace assets if it exists.
+          if gh release view "$tag" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "$tag" upload/* --repo "${GITHUB_REPOSITORY}" --clobber
+          else
+            gh release create "$tag" upload/* \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "$tag" \
+              --notes "$notes" \
+              --verify-tag
+          fi
 
   publish-pypi:
     name: Publish to PyPI
@@ -241,7 +246,12 @@ jobs:
       - name: Flatten distributions
         run: |
           mkdir -p dist
-          find artifacts -type f \( -name '*.whl' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
+          # PyPI gets only the Python wheels and sdist. Exclude the C-ABI shared
+          # library tarballs (libadbc_driver_spark-*.tar.gz), which are not
+          # Python distributions and which twine would reject.
+          find artifacts -type f \
+            \( -name '*.whl' -o \( -name '*.tar.gz' ! -name 'libadbc_driver_spark-*' \) \) \
+            -exec cp {} dist/ \;
           ls -l dist
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
