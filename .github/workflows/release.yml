@@ -234,8 +234,6 @@ jobs:
     environment:
       name: pypi
       url: https://pypi.org/p/adbc-driver-spark
-    permissions:
-      id-token: write  # OIDC trusted publishing; no API token needed.
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -250,3 +248,6 @@ jobs:
         with:
           packages-dir: dist
           skip-existing: true
+          # Uses the PYPI_TOKEN repository secret (API-token auth). Switch to
+          # OIDC trusted publishing only if a PyPI trusted publisher is set up.
+          password: ${{ secrets.PYPI_TOKEN }}
