@@ -64,17 +64,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # This matrix mirrors the spark-connect-ruby CI.
+        #
+        # Spark 4.0.0+ ships only a Scala 2.13 build and bundles the Connect
+        # server, so the default tarball works and no --packages is needed. We
+        # pin to .0 releases because patch tarballs after 4.1.0 split Connect
+        # into a separate `-connect` distribution.
+        #
+        # Spark 3.5.x defaults to a Scala 2.12 build and does NOT bundle the
+        # Connect server, so we use the Scala 2.13 distribution AND add the
+        # matching _2.13 package.
         include:
-          # Spark 4.x ships a Scala 2.13 build whose default tarball bundles the
-          # Connect server, so no --packages is needed. We pin to the .0 releases
-          # because patch tarballs after 4.1.0 split Connect into a separate
-          # `-connect` distribution; this mirrors the spark-connect-ruby CI.
           - spark: "4.1.0"
             dist: spark-4.1.0-bin-hadoop3
             packages: ""
           - spark: "4.0.0"
             dist: spark-4.0.0-bin-hadoop3
             packages: ""
+          - spark: "3.5.0"
+            dist: spark-3.5.0-bin-hadoop3-scala2.13
+            packages: "--packages org.apache.spark:spark-connect_2.13:3.5.0"
     env:
       SPARK_VERSION: ${{ matrix.spark }}
     steps:
@@ -112,23 +121,16 @@ jobs:
       - name: Start Spark Connect server
         run: |
           # Do NOT set SPARK_NO_DAEMONIZE: spark-daemon.sh treats any non-empty
-          # value as "run in the foreground", which would hang this step. Leaving
-          # it unset lets the server daemonize so the wait loop below can run.
-          # matrix.packages is empty for the bundled 4.x tarballs.
+          # value as "run in the foreground", which hangs this step forever.
+          # Leaving it unset lets the server daemonize so the wait loop runs.
           ~/spark/sbin/start-connect-server.sh \
             ${{ matrix.packages }} \
             --conf spark.log.level=WARN
+          # Wait for the gRPC port to accept connections.
           for i in $(seq 1 60); do
-            if bash -c "exec 3<>/dev/tcp/localhost/15002" 2>/dev/null; then
-              echo "Spark Connect ${{ matrix.spark }} is accepting connections."
-              exit 0
-            fi
-            echo "waiting for Spark Connect ($i)..."
-            sleep 5
+            if bash -c "</dev/tcp/localhost/15002" 2>/dev/null; then echo "Spark Connect up"; break; fi
+            sleep 2
           done
-          echo "::error::Spark Connect server never became reachable."
-          tail -n 200 ~/spark/logs/*.out 2>/dev/null || true
-          exit 1
 
       - name: Go e2e suite
         run: go test -tags e2e -v -timeout 20m ./tests/e2e/...
