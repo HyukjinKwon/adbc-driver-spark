@@ -15,9 +15,10 @@
 
 # End-to-end tests against a live Spark Connect server.
 #
-# We test compatibility against BOTH the current target (Spark 4.1.x) and the
-# previous line (Spark 4.0.x) on every run, mirroring the live-Spark matrix used
-# by the reference clients spark-connect-ruby and spark-connect-scala3.
+# We test compatibility against the current target (Spark 4.2.x) and the
+# previous lines (Spark 4.1.x / 4.0.x / 3.5.x) on every run, mirroring the
+# live-Spark matrix used by the reference clients spark-connect-ruby and
+# spark-connect-scala3.
 #
 # Each matrix entry downloads the official Spark distribution from the Apache
 # archive and starts its bundled Spark Connect server. Spark 4.0.0+ ships only a
@@ -75,10 +76,13 @@ jobs:
         include:
           # The C and R examples are exercised once (on the current target line)
           # to keep CI fast while still proving the multi-language support.
+          - spark: "4.2.0"
+            dist: spark-4.2.0-bin-hadoop3
+            packages: ""
+            cr: "true"
           - spark: "4.1.2"
             dist: spark-4.1.2-bin-hadoop3
             packages: ""
-            cr: "true"
           - spark: "4.0.3"
             dist: spark-4.0.3-bin-hadoop3
             packages: ""
