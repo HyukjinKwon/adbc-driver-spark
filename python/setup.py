@@ -23,7 +23,18 @@ has no ``ext_modules``, so by default setuptools would emit a misleading
 correct platform wheel tag (e.g. ``macosx_*_x86_64``, ``manylinux_*_x86_64``,
 ``win_amd64``), which is also what ``auditwheel`` / ``delocate`` require during
 the release workflow.
+
+On macOS there is an extra hazard: the release runners build a *single*
+architecture library each (Intel or Apple Silicon), but the python.org
+interpreter reports a ``universal2`` platform tag. Left alone, ``bdist_wheel``
+would stamp that ``universal2`` tag onto a single-arch wheel, so ``pip`` would
+happily install an x86_64-only wheel on an arm64 Mac and ``dlopen`` would then
+fail with "incompatible architecture" (issue #9). ``get_tag`` below inspects the
+bundled ``.dylib`` and rewrites the platform tag to the architecture the library
+actually contains.
 """
+
+import os
 
 from setuptools import setup
 from setuptools.dist import Distribution
@@ -60,7 +71,38 @@ class bdist_wheel(_bdist_wheel):
 
     def get_tag(self):  # noqa: D102
         _python, _abi, plat = super().get_tag()
-        return "py3", "none", plat
+        return "py3", "none", _retag_macos(plat)
+
+
+def _retag_macos(plat: str) -> str:
+    """Correct a macOS ``universal2`` tag to the bundled library's real arch.
+
+    On non-macOS platforms, or when no ``.dylib`` is bundled, the tag is
+    returned unchanged. If a ``.dylib`` is present its Mach-O architecture wins,
+    so a single-arch library can never ship under a ``universal2`` tag.
+    """
+    if not plat.startswith("macosx_"):
+        return plat
+
+    # Load the Mach-O helper directly by path so this works inside an isolated
+    # PEP 517 build environment, where the package is not yet importable.
+    import importlib.util
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    macho_path = os.path.join(here, "adbc_driver_spark", "_macho.py")
+    spec = importlib.util.spec_from_file_location("_adbc_spark_macho", macho_path)
+    if spec is None or spec.loader is None:
+        return plat
+    macho = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(macho)
+
+    dylib = os.path.join(here, "adbc_driver_spark", "libadbc_driver_spark.dylib")
+    if not os.path.isfile(dylib):
+        return plat
+    archs = macho.mach_o_architectures(dylib)
+    if not archs:
+        return plat
+    return macho.retag_macos_platform(plat, archs)
 
 
 setup(distclass=BinaryDistribution, cmdclass={"bdist_wheel": bdist_wheel})
