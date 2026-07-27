@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-28
+
 ### Fixed
 
 - macOS wheels were tagged `universal2` while each bundled only a single-arch
@@ -14,6 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   tag is now derived from the bundled library's real Mach-O architecture
   (`macosx_*_arm64` / `macosx_*_x86_64`), and the release workflow verifies the
   tag matches the runner's arch.
+
+### Changed
+
+- Bumped `google.golang.org/grpc` from 1.80.0 to 1.82.1 and
+  `github.com/apache/arrow-go/v18` from 18.6.0 to 18.7.0.
+- Bumped pinned GitHub Actions to their latest majors.
 
 ## [0.2.0] - 2026-06-15
 
@@ -84,6 +92,7 @@ Initial release of the Apache Arrow ADBC driver for Apache Spark Connect.
 - Runnable examples in Python, Go, C, R, Rust, and Ruby; the Python, C, R, Rust,
   and Ruby examples are validated end to end in CI against a live server.
 
-[Unreleased]: https://github.com/HyukjinKwon/adbc-driver-spark/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/HyukjinKwon/adbc-driver-spark/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/HyukjinKwon/adbc-driver-spark/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/HyukjinKwon/adbc-driver-spark/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/HyukjinKwon/adbc-driver-spark/releases/tag/v0.1.0
