@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- macOS wheels were tagged `universal2` while each bundled only a single-arch
+  `.dylib`, so `pip` could install an x86_64-only wheel on an Apple Silicon Mac
+  and `dlopen` failed with "incompatible architecture" (#9). The wheel platform
+  tag is now derived from the bundled library's real Mach-O architecture
+  (`macosx_*_arm64` / `macosx_*_x86_64`), and the release workflow verifies the
+  tag matches the runner's arch.
+
 ## [0.2.0] - 2026-06-15
 
 ### Added

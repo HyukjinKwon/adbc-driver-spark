@@ -172,6 +172,28 @@ jobs:
             delocate-wheel -w repaired "$whl" || cp "$whl" repaired/
           done
           rm -rf wheelhouse && mv repaired wheelhouse
+      - name: Verify macOS wheel arch matches its tag
+        if: startsWith(matrix.target, 'macos')
+        shell: bash
+        run: |
+          set -eux
+          # Guard against regressing issue #9: a single-arch dylib must never
+          # ship under a universal2 tag (or vice versa). Expected arch is the
+          # runner's arch, e.g. macos-arm64 -> arm64, macos-x86_64 -> x86_64.
+          expected="${{ matrix.target }}"
+          expected="${expected#macos-}"
+          for whl in wheelhouse/*.whl; do
+            case "$whl" in
+              *"_${expected}.whl") echo "OK: $whl matches $expected" ;;
+              *universal2*)
+                echo "::error::$whl is tagged universal2 but was built on a single-arch ($expected) runner"
+                lipo -archs $(python -c "import zipfile,sys,tempfile,os; z=zipfile.ZipFile('$whl'); n=[x for x in z.namelist() if x.endswith('.dylib')][0]; d=tempfile.mkdtemp(); z.extract(n,d); print(os.path.join(d,n))") || true
+                exit 1 ;;
+              *)
+                echo "::error::$whl tag does not match expected arch $expected"
+                exit 1 ;;
+            esac
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.target }}
