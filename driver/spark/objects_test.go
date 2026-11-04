@@ -62,25 +62,36 @@ func TestIsPattern(t *testing.T) {
 	}
 }
 
-// TestEscapeLike verifies single-quote escaping for SQL literals.
-func TestEscapeLike(t *testing.T) {
+func strPtr(s string) *string { return &s }
+
+// TestLikeClause verifies that ADBC patterns are translated to Spark's SHOW ...
+// LIKE syntax only when Spark can express them.
+func TestLikeClause(t *testing.T) {
 	tests := []struct {
-		in, want string
+		pattern *string
+		want    string
 	}{
-		{"plain", "plain"},
-		{"O'Brien", "O''Brien"},
-		{"''", "''''"},
-		{"no quotes", "no quotes"},
-		{"%pattern_", "%pattern_"},
+		{nil, ""},
+		{strPtr(""), ""},
+		{strPtr("people"), " LIKE 'people'"},
+		{strPtr("my%"), " LIKE 'my*'"},
+		{strPtr("a_b%"), " LIKE 'a.b*'"},
+		{strPtr("Mixed09"), " LIKE 'Mixed09'"},
+		// Characters with a meaning in Spark's syntax, or that need quoting.
+		{strPtr("a.b"), ""},
+		{strPtr("a*"), ""},
+		{strPtr("a|b"), ""},
+		{strPtr("O'Brien"), ""},
+		{strPtr(" a"), ""},
+		// Spark ignores the case of ASCII letters only.
+		{strPtr("Übersicht"), ""},
 	}
 	for _, tt := range tests {
-		if got := escapeLike(tt.in); got != tt.want {
-			t.Errorf("escapeLike(%q) = %q, want %q", tt.in, got, tt.want)
+		if got := likeClause(tt.pattern); got != tt.want {
+			t.Errorf("likeClause(%v) = %q, want %q", tt.pattern, got, tt.want)
 		}
 	}
 }
-
-func strPtr(s string) *string { return &s }
 
 // TestFilterByPattern verifies the client-side pattern/exact filtering.
 func TestFilterByPattern(t *testing.T) {
@@ -99,6 +110,9 @@ func TestFilterByPattern(t *testing.T) {
 		{"contains wildcard", strPtr("%prod"), []string{"prod", "preprod"}},
 		{"single char wildcard", strPtr("dem_"), []string{"demo"}},
 		{"match all", strPtr("%"), names},
+		{"exact match ignores case", strPtr("PROD"), []string{"prod"}},
+		{"wildcard ignores case", strPtr("DE%"), []string{"default", "demo"}},
+		{"other characters are literal", strPtr("de.ault"), nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -156,6 +170,12 @@ func TestLikeMatchMore(t *testing.T) {
 		{"a_c_e", "abcdef", false},
 		{"abc", "abc", true},
 		{"abc", "abcd", false},
+		{"ABC", "abc", true},
+		{"a__d", "abcd", true},
+		{"ÜBER%", "übersicht", true},
+		{"a.c", "abc", false},
+		{"a*", "abc", false},
+		{"a|b", "a", false},
 	}
 	for _, tt := range tests {
 		if got := likeMatch(tt.pattern, tt.s); got != tt.want {

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- `GetObjects` name filters didn't follow SQL `LIKE` syntax. Schema and table
+  patterns went unchanged into `SHOW NAMESPACES/TABLES ... LIKE`, which takes
+  Spark's own syntax, so `my%` matched nothing while `my*` and `a|b` acted as
+  wildcards, and catalog and column patterns were matched case-sensitively.
+  Patterns now reach Spark only where its syntax can express them, and every
+  name is matched on the client, ignoring case.
+
 ## [0.3.0] - 2026-07-28
 
 ### Fixed

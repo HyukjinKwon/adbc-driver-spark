@@ -23,6 +23,9 @@ package spark
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/apache/arrow-adbc/go/adbc"
@@ -356,6 +359,149 @@ func TestGetObjectsFullDepth(t *testing.T) {
 	columnName := columnStruct.Field(0).(*array.String)
 	if columnStruct.Len() != 2 || columnName.Value(0) != "id" || columnName.Value(1) != "name" {
 		t.Errorf("columns len %d, values [%q %q], want [id name]", columnStruct.Len(), columnName.Value(0), columnName.Value(1))
+	}
+}
+
+// objectTables flattens a GetObjects result into sorted "schema.table" names.
+func objectTables(t *testing.T, reader array.RecordReader) []string {
+	t.Helper()
+	var out []string
+	for reader.Next() {
+		schemas := reader.RecordBatch().Column(1).(*array.List).ListValues().(*array.Struct)
+		schemaNames := schemas.Field(0).(*array.String)
+		tablesList := schemas.Field(1).(*array.List)
+		tableNames := tablesList.ListValues().(*array.Struct).Field(0).(*array.String)
+		for s := 0; s < schemas.Len(); s++ {
+			start, end := tablesList.ValueOffsets(s)
+			for i := start; i < end; i++ {
+				out = append(out, schemaNames.Value(s)+"."+tableNames.Value(int(i)))
+			}
+		}
+	}
+	if err := reader.Err(); err != nil {
+		t.Fatalf("reader.Err: %v", err)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestGetObjectsNamePatterns checks that ADBC name patterns are matched on the
+// client, and reach Spark only in the syntax of its own SHOW ... LIKE. The fake
+// server ignores LIKE, so the driver has to filter every name it lists.
+func TestGetObjectsNamePatterns(t *testing.T) {
+	alloc := memory.DefaultAllocator
+	var mu sync.Mutex
+	var tableQueries []string
+	srv := newFakeServer(alloc, func(q string) queryResult {
+		switch {
+		case containsFold(q, "SHOW CATALOGS"):
+			return stringColumnResult(alloc, "catalog", "spark_catalog")
+		case containsFold(q, "SHOW NAMESPACES"):
+			return stringColumnResult(alloc, "namespace", "default", "demo")
+		case containsFold(q, "SHOW TABLES"):
+			mu.Lock()
+			tableQueries = append(tableQueries, q)
+			mu.Unlock()
+			return stringColumnResult(alloc, "tableName", "my_table", "myxtable", "my.table", "other")
+		default:
+			return queryResult{grpcErr: status.Errorf(codes.InvalidArgument, "unexpected query: %s", q)}
+		}
+	})
+	uri := startFakeServer(t, srv)
+	cnxn := openTestConn(t, uri)
+
+	tests := []struct {
+		schema, table string
+		like          string // the LIKE clause sent with SHOW TABLES, if any
+		want          []string
+	}{
+		{"default", "my_table", " LIKE 'my.table'", []string{"default.my.table", "default.my_table", "default.myxtable"}},
+		{"DEF%", "MY%", " LIKE 'MY*'", []string{"default.my.table", "default.my_table", "default.myxtable"}},
+		{"d%", "other", " LIKE 'other'", []string{"default.other", "demo.other"}},
+		// '.', '*', and '|' are literal characters, so these get no LIKE.
+		{"default", "my.table", "", []string{"default.my.table"}},
+		{"default", "my*", "", nil},
+		{"default", "other|my%", "", nil},
+	}
+	for _, tt := range tests {
+		mu.Lock()
+		tableQueries = nil
+		mu.Unlock()
+		reader, err := cnxn.GetObjects(context.Background(), adbc.ObjectDepthTables, nil, &tt.schema, &tt.table, nil, nil)
+		if err != nil {
+			t.Fatalf("GetObjects(%q, %q): %v", tt.schema, tt.table, err)
+		}
+		got := objectTables(t, reader)
+		reader.Release()
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("GetObjects(%q, %q) = %v, want %v", tt.schema, tt.table, got, tt.want)
+		}
+		mu.Lock()
+		for _, q := range tableQueries {
+			if tt.like == "" && containsFold(q, " LIKE ") || tt.like != "" && !strings.HasSuffix(q, tt.like) {
+				t.Errorf("GetObjects(%q, %q) sent %q, want LIKE clause %q", tt.schema, tt.table, q, tt.like)
+			}
+		}
+		mu.Unlock()
+	}
+}
+
+// TestGetObjectsColumnPattern checks that column patterns are matched ignoring
+// case, like the other name patterns, and with literal '.', '*', and '|'.
+func TestGetObjectsColumnPattern(t *testing.T) {
+	alloc := memory.DefaultAllocator
+	tableSchema := arrow.NewSchema([]arrow.Field{
+		{Name: "id", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "Name", Type: arrow.BinaryTypes.String},
+	}, nil)
+	srv := newFakeServer(alloc, func(q string) queryResult {
+		switch {
+		case containsFold(q, "SHOW CATALOGS"):
+			return stringColumnResult(alloc, "catalog", "spark_catalog")
+		case containsFold(q, "SHOW NAMESPACES"):
+			return stringColumnResult(alloc, "namespace", "default")
+		case containsFold(q, "SHOW TABLES"):
+			return stringColumnResult(alloc, "tableName", "people")
+		case containsFold(q, "LIMIT 0"):
+			return schemaOnlyResult(tableSchema)
+		default:
+			return queryResult{grpcErr: status.Errorf(codes.InvalidArgument, "unexpected query: %s", q)}
+		}
+	})
+	uri := startFakeServer(t, srv)
+	cnxn := openTestConn(t, uri)
+
+	for _, tt := range []struct {
+		pattern string
+		want    []string
+	}{
+		{"NAME", []string{"Name"}},
+		{"I_", []string{"id"}},
+		{"%", []string{"id", "Name"}},
+		{"n.me", nil},
+		{"id|Name", nil},
+	} {
+		reader, err := cnxn.GetObjects(context.Background(), adbc.ObjectDepthColumns, nil, nil, nil, &tt.pattern, nil)
+		if err != nil {
+			t.Fatalf("GetObjects(column %q): %v", tt.pattern, err)
+		}
+		var got []string
+		for reader.Next() {
+			schemas := reader.RecordBatch().Column(1).(*array.List).ListValues().(*array.Struct)
+			tables := schemas.Field(1).(*array.List).ListValues().(*array.Struct)
+			columns := tables.Field(2).(*array.List).ListValues().(*array.Struct)
+			names := columns.Field(0).(*array.String)
+			for i := 0; i < names.Len(); i++ {
+				got = append(got, names.Value(i))
+			}
+		}
+		if err := reader.Err(); err != nil {
+			t.Fatalf("reader.Err: %v", err)
+		}
+		reader.Release()
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("GetObjects(column %q) = %v, want %v", tt.pattern, got, tt.want)
+		}
 	}
 }
 
