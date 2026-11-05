@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.25.x"
+  GO_VERSION: "1.26.x"
   PYTHON_VERSION: "3.11"
 
 # Use bash on every OS. The default Windows shell (PowerShell) parses the

@@ -89,7 +89,7 @@ proto: cannot parse invalid wire-format data
 
 - Check the Spark Connect server version. The driver supports Spark 4.0.x and
   4.1.x (protos pinned to v4.1.2). See [Compatibility](compatibility.md).
-- For Go, the module requires Go 1.25 or newer and matched `arrow-go` and
+- For Go, the module requires Go 1.26 or newer and matched `arrow-go` and
   `arrow-adbc` versions; run `go mod tidy` if you see resolution errors.
 - For Python, ensure `pyarrow` and `adbc-driver-manager` were installed by the
   same `pip install` so their ABIs line up.

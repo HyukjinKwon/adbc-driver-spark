@@ -181,7 +181,7 @@ for the full list.
 | Spark Connect    | Spark 3.5.x, 4.0.x, 4.1.x (protos pinned to v4.1.2)  |
 | ADBC API         | 1.1.0                                                |
 | Python           | 3.9 - 3.13                                            |
-| Go               | 1.25+                                                |
+| Go               | 1.26+                                                |
 | Platforms        | Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x86_64) |
 
 See [Compatibility and Conformance](https://hyukjinkwon.github.io/adbc-driver-spark/compatibility/)
