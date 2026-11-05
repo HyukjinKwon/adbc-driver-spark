@@ -71,5 +71,5 @@ relations submitted via `ExecutePlan`. See [Architecture](architecture.md).
 |------------|-----------|
 | ADBC API   | 1.1.0 |
 | Python     | 3.9 - 3.13 |
-| Go         | 1.25+ |
+| Go         | 1.26+ |
 | Platforms  | Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x86_64) |

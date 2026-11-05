@@ -7,7 +7,7 @@ in the repository; this page is a short orientation.
 
 ## Prerequisites
 
-- Go 1.25 or newer (the Arrow Go and ADBC modules require it).
+- Go 1.26 or newer (the Arrow Go and ADBC modules require it).
 - Python 3.9 or newer, for the Python package and tests.
 - A C toolchain (cgo) to build the shared library: clang or gcc.
 - `buf` 1.31 or newer, if you need to regenerate the Spark Connect stubs.

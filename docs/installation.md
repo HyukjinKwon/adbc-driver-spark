@@ -31,7 +31,7 @@ go get github.com/HyukjinKwon/adbc-driver-spark
 This pulls in the native Go driver under
 `github.com/HyukjinKwon/adbc-driver-spark/driver/spark`, together with
 `github.com/apache/arrow-adbc/go/adbc` and `github.com/apache/arrow-go/v18`.
-Go 1.25 or newer is required. See [Using from Go](usage-go.md).
+Go 1.26 or newer is required. See [Using from Go](usage-go.md).
 
 ## C, C++, and R
 
@@ -68,7 +68,7 @@ load the library.
 
 ### Build the shared library from source
 
-You need Go 1.25 or newer and a C toolchain (clang or gcc), because the C-ABI
+You need Go 1.26 or newer and a C toolchain (clang or gcc), because the C-ABI
 layer uses cgo.
 
 ```bash

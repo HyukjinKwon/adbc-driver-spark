@@ -13,7 +13,7 @@ go get github.com/HyukjinKwon/adbc-driver-spark
 
 The driver lives at `github.com/HyukjinKwon/adbc-driver-spark/driver/spark`. It
 depends on `github.com/apache/arrow-adbc/go/adbc` and
-`github.com/apache/arrow-go/v18`. Go 1.25 or newer is required.
+`github.com/apache/arrow-go/v18`. Go 1.26 or newer is required.
 
 ## Creating a driver and running a query
 

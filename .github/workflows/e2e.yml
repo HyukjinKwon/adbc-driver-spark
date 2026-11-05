@@ -52,7 +52,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.25.x"
+  GO_VERSION: "1.26.x"
   PYTHON_VERSION: "3.11"
   # NOTE: SPARK_CONNECT_URI / SPARK_REMOTE are intentionally NOT set here. If
   # SPARK_REMOTE is present in the environment, start-connect-server.sh launches

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The Go module now requires Go 1.26 or newer, which `arrow-adbc` v1.13.0
+  needs.
+
 ### Fixed
 
 - `GetObjects` name filters didn't follow SQL `LIKE` syntax. Schema and table

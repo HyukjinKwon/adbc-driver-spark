@@ -1,8 +1,6 @@
 module github.com/HyukjinKwon/adbc-driver-spark
 
-go 1.25.0
-
-toolchain go1.25.4
+go 1.26.0
 
 require (
 	github.com/apache/arrow-adbc/go/adbc v1.12.0
