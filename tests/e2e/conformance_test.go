@@ -19,6 +19,10 @@ package e2e
 
 import (
 	"errors"
+	"fmt"
+	"math/rand/v2"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/apache/arrow-adbc/go/adbc"
@@ -54,6 +58,85 @@ func TestGetTableTypes(t *testing.T) {
 	defer rdr.Release()
 	if n := drain(rdr); n == 0 {
 		t.Fatalf("GetTableTypes returned no rows; expected TABLE/VIEW/...")
+	}
+}
+
+// TestGetObjectsNamePatterns checks GetObjects name filters against a live
+// server. ADBC patterns use SQL LIKE syntax, while Spark's SHOW ... LIKE uses
+// its own syntax and ignores the case of ASCII letters only. Temporary views
+// are enough, since SHOW TABLES lists them in every schema of spark_catalog.
+func TestGetObjectsNamePatterns(t *testing.T) {
+	ctx, conn := openConn(t)
+
+	exec := func(sql string) {
+		t.Helper()
+		stmt, err := conn.NewStatement()
+		if err != nil {
+			t.Fatalf("NewStatement: %v", err)
+		}
+		defer stmt.Close()
+		if err := stmt.SetSqlQuery(sql); err != nil {
+			t.Fatalf("SetSqlQuery(%q): %v", sql, err)
+		}
+		if _, err := stmt.ExecuteUpdate(ctx); err != nil {
+			t.Fatalf("ExecuteUpdate(%q): %v", sql, err)
+		}
+	}
+	names := func(catalog, schema, table string) []string {
+		t.Helper()
+		rdr, err := conn.GetObjects(ctx, adbc.ObjectDepthTables, &catalog, &schema, &table, nil, nil)
+		if err != nil {
+			t.Fatalf("GetObjects(%q, %q, %q): %v", catalog, schema, table, err)
+		}
+		defer rdr.Release()
+		var out []string
+		for rdr.Next() {
+			schemas := rdr.RecordBatch().Column(1).(*array.List).ListValues().(*array.Struct)
+			tables := schemas.Field(1).(*array.List).ListValues().(*array.Struct)
+			tableNames := tables.Field(0).(*array.String)
+			for i := 0; i < tableNames.Len(); i++ {
+				out = append(out, tableNames.Value(i))
+			}
+		}
+		if err := rdr.Err(); err != nil {
+			t.Fatalf("GetObjects(%q, %q, %q): %v", catalog, schema, table, err)
+		}
+		slices.Sort(out)
+		return out
+	}
+
+	suffix := fmt.Sprintf("%08x", rand.Uint32())
+	pa, px := "pattern_"+suffix+"_a", "pattern_"+suffix+"xa"
+	other, uber := "other_"+suffix, "übersicht_"+suffix
+	views := []string{pa, px, other, uber}
+	for _, v := range views {
+		exec("CREATE TEMPORARY VIEW `" + v + "` AS SELECT 1 AS id")
+	}
+	defer func() {
+		for _, v := range views {
+			exec("DROP VIEW IF EXISTS `" + v + "`")
+		}
+	}()
+
+	for _, tt := range []struct {
+		catalog, schema, table string
+		want                   []string
+	}{
+		{"spark_catalog", "default", "pattern_" + suffix + "%", []string{pa, px}},
+		// '_' matches any one character, and matching ignores case.
+		{"spark_catalog", "default", strings.ToUpper(pa), []string{pa, px}},
+		{"spark_catalog", "default", "pattern__" + suffix[1:] + "%", []string{pa, px}},
+		{"spark_catalog", "default", strings.ToUpper(uber), []string{uber}},
+		// '.', '*', and '|' are literal characters.
+		{"spark_catalog", "default", "pattern." + suffix + "%", nil},
+		{"spark_catalog", "default", "pattern_" + suffix + "*", nil},
+		{"spark_catalog", "default", other + "|pattern%", nil},
+		// Catalog and schema patterns use the same syntax.
+		{"spark_catalo_", "defaul%", "%" + suffix + "%", []string{other, pa, px, uber}},
+	} {
+		if got := names(tt.catalog, tt.schema, tt.table); !slices.Equal(got, tt.want) {
+			t.Errorf("GetObjects(%q, %q, %q) = %v, want %v", tt.catalog, tt.schema, tt.table, got, tt.want)
+		}
 	}
 }
 

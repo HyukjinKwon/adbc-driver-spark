@@ -18,6 +18,7 @@ package spark
 import (
 	"context"
 	"strings"
+	"unicode"
 
 	"github.com/apache/arrow-adbc/go/adbc"
 	"github.com/apache/arrow-go/v18/arrow"
@@ -28,8 +29,10 @@ import (
 // the requested depth and assembling the standard ADBC nested Arrow structure.
 //
 // The traversal issues Spark SQL catalog commands (SHOW CATALOGS / NAMESPACES /
-// TABLES) and reuses GetTableSchema for column information. Filters are applied
-// as SQL LIKE patterns where Spark supports them and client-side otherwise.
+// TABLES) and reuses GetTableSchema for column information. Name filters are
+// ADBC patterns (SQL LIKE syntax), which are always matched on the client; they
+// are also sent to Spark as a LIKE clause, to narrow the listing, where Spark's
+// own pattern syntax can express them (see likeClause).
 func (c *connection) buildObjects(ctx context.Context, depth adbc.ObjectDepth, catalog, dbSchema, tableName, columnName *string, tableTypes []string) (array.RecordReader, error) {
 	catalogs, err := c.listCatalogs(ctx, catalog)
 	if err != nil {
@@ -136,10 +139,9 @@ func (c *connection) appendColumns(ctx context.Context, sb *array.StructBuilder,
 	nameBldr := sb.FieldBuilder(0).(*array.StringBuilder)
 	ordinalBldr := sb.FieldBuilder(1).(*array.Int32Builder)
 
-	filter := columnName != nil && *columnName != ""
 	for i, field := range tableArrowSchema.Fields() {
 		// ADBC treats a non-empty column_name as a LIKE filter on column names.
-		if filter && !likeMatch(*columnName, field.Name) {
+		if !matchesPattern(columnName, field.Name) {
 			continue
 		}
 		sb.Append(true)
@@ -170,10 +172,7 @@ func (c *connection) listCatalogs(ctx context.Context, catalog *string) ([]strin
 }
 
 func (c *connection) listSchemas(ctx context.Context, catalog string, dbSchema *string) ([]string, error) {
-	like := ""
-	if dbSchema != nil && *dbSchema != "" {
-		like = " LIKE '" + escapeLike(*dbSchema) + "'"
-	}
+	like := likeClause(dbSchema)
 	// "SHOW NAMESPACES IN <catalog>" is the portable form, but the v1 session
 	// catalog on several Spark versions rejects a qualified namespace with
 	// "Nested databases are not supported by v1 session catalog". Fall back to
@@ -186,7 +185,7 @@ func (c *connection) listSchemas(ctx context.Context, catalog string, dbSchema *
 	if err != nil {
 		return nil, nil
 	}
-	return names, nil
+	return filterByPattern(names, dbSchema), nil
 }
 
 // tableEntry is a table name paired with its ADBC table type.
@@ -199,10 +198,7 @@ type tableEntry struct {
 // session-scoped temporary views via the isTemporary column; those are reported
 // as TEMPORARY, everything else as TABLE.
 func (c *connection) listTables(ctx context.Context, catalog, schema string, tableName *string) ([]tableEntry, error) {
-	sql := "SHOW TABLES IN " + quoteIdent(catalog) + "." + quoteIdent(schema)
-	if tableName != nil && *tableName != "" {
-		sql += " LIKE '" + escapeLike(*tableName) + "'"
-	}
+	sql := "SHOW TABLES IN " + quoteIdent(catalog) + "." + quoteIdent(schema) + likeClause(tableName)
 	reader, err := c.client.ExecuteSQL(ctx, sql, nil)
 	if err != nil {
 		return nil, err
@@ -234,7 +230,7 @@ func (c *connection) listTables(ctx context.Context, catalog, schema string, tab
 			temp, _ = rec.Column(tempIdx).(*array.Boolean)
 		}
 		for r := 0; r < col.Len(); r++ {
-			if col.IsNull(r) {
+			if col.IsNull(r) || !matchesPattern(tableName, col.Value(r)) {
 				continue
 			}
 			tt := "TABLE"
@@ -318,49 +314,66 @@ func isPattern(s string) bool {
 	return strings.ContainsAny(s, "%_")
 }
 
-// escapeLike escapes single quotes so a value can be embedded in a SQL literal.
-func escapeLike(s string) string {
-	return strings.ReplaceAll(s, "'", "''")
+// likeClause turns an optional ADBC name pattern into a LIKE clause for Spark's
+// SHOW commands, or "" when there is no pattern or Spark can't express it.
+// Names are matched on the client as well, so the clause only narrows the
+// listing.
+//
+// SHOW ... LIKE takes Spark's own syntax, not SQL LIKE: a regex in which '*'
+// matches any characters and '|' separates alternatives, matched ignoring the
+// case of ASCII letters only. So only a pattern of ASCII letters, digits, '%',
+// and '_' gets a clause, with '%' sent as '*' and '_' as '.', which needs no
+// quoting; any other pattern is matched only on the client. Names in Spark's
+// session catalog can only contain those characters anyway.
+func likeClause(pattern *string) string {
+	if pattern == nil || *pattern == "" {
+		return ""
+	}
+	var like strings.Builder
+	for _, r := range *pattern {
+		switch {
+		case r == '%':
+			like.WriteByte('*')
+		case r == '_':
+			like.WriteByte('.')
+		case 'a' <= r && r <= 'z', 'A' <= r && r <= 'Z', '0' <= r && r <= '9':
+			like.WriteRune(r)
+		default:
+			return ""
+		}
+	}
+	return " LIKE '" + like.String() + "'"
+}
+
+// matchesPattern reports whether name matches an optional ADBC name pattern.
+// A nil or empty pattern matches every name.
+func matchesPattern(pattern *string, name string) bool {
+	return pattern == nil || *pattern == "" || likeMatch(*pattern, name)
 }
 
 // filterByPattern keeps names matching the optional LIKE pattern (client-side).
 func filterByPattern(names []string, pattern *string) []string {
-	if pattern == nil || *pattern == "" || !isPattern(*pattern) {
-		if pattern != nil && *pattern != "" {
-			// Exact match requested.
-			var out []string
-			for _, n := range names {
-				if n == *pattern {
-					out = append(out, n)
-				}
-			}
-			return out
-		}
+	if pattern == nil || *pattern == "" {
 		return names
 	}
-	matcher := likeToMatcher(*pattern)
 	var out []string
 	for _, n := range names {
-		if matcher(n) {
+		if likeMatch(*pattern, n) {
 			out = append(out, n)
 		}
 	}
 	return out
 }
 
-// likeToMatcher compiles a minimal SQL LIKE pattern (% and _) into a matcher.
-func likeToMatcher(pattern string) func(string) bool {
-	return func(s string) bool { return likeMatch(pattern, s) }
-}
-
-// likeMatch evaluates a SQL LIKE pattern against s, supporting % and _.
+// likeMatch evaluates a SQL LIKE pattern against s, supporting % and _ and
+// ignoring case, as Spark resolves identifiers.
 func likeMatch(pattern, s string) bool {
 	p := []rune(pattern)
 	str := []rune(s)
 	var i, j, star, mark int
 	star = -1
 	for j < len(str) {
-		if i < len(p) && (p[i] == '_' || p[i] == str[j]) {
+		if i < len(p) && (p[i] == '_' || equalFold(p[i], str[j])) {
 			i++
 			j++
 		} else if i < len(p) && p[i] == '%' {
@@ -379,4 +392,18 @@ func likeMatch(pattern, s string) bool {
 		i++
 	}
 	return i == len(p)
+}
+
+// equalFold reports whether two runes are equal under simple Unicode case
+// folding, as strings.EqualFold compares them.
+func equalFold(a, b rune) bool {
+	if a == b {
+		return true
+	}
+	for r := unicode.SimpleFold(a); r != a; r = unicode.SimpleFold(r) {
+		if r == b {
+			return true
+		}
+	}
+	return false
 }
